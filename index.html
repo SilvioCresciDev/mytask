@@ -141,7 +141,7 @@ h2.late{color:var(--late)}
 .f label,.flab{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 .f input,.f select,.f textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
 .wheel-row{display:flex;align-items:center;gap:8px}
-.wheel{position:relative;display:flex;flex:1;height:180px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
+.wheel{position:relative;display:flex;align-items:center;flex:1;height:180px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
 .wheel .wband{position:absolute;left:0;right:0;top:72px;height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);pointer-events:none}
 .wcol{flex:1;overflow-y:auto;scroll-snap-type:y mandatory;padding:72px 0;scrollbar-width:none;-ms-overflow-style:none;mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%)}
 .wcol::-webkit-scrollbar{display:none}
@@ -221,7 +221,7 @@ const I={
  rep:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
 };
-const LABELS={urgente:'--l-red',lavoro:'--l-blue',casa:'--l-green',idea:'--l-violet',attesa:'--l-amber'};
+const LABELS={urgente:'--l-red',lavoro:'--l-blue',casa:'--l-green',personale:'--l-violet',idea:'--l-violet',attesa:'--l-amber'};
 const REM=[[null,'Nessuno'],[0,"All'orario"],[10,'10 minuti prima'],[30,'30 minuti prima'],[60,'1 ora prima'],[1440,'1 giorno prima']];
 const REC={none:'Non si ripete',daily:'Ogni giorno',d2:'Ogni 2 giorni',d3:'Ogni 3 giorni',d4:'Ogni 4 giorni',d5:'Ogni 5 giorni',d6:'Ogni 6 giorni',weekly:'Ogni settimana',monthly:'Ogni mese',dates:'Date sparse (le scegli tu)'};
 const STEP={daily:1,d2:2,d3:3,d4:4,d5:5,d6:6,weekly:7};
