@@ -143,13 +143,13 @@ h2.late{color:var(--late)}
 .daytog{display:flex;gap:8px}
 .daytog .btn{flex:1}
 .wheel-row{display:flex;align-items:center;gap:8px}
-.wheel{position:relative;display:flex;align-items:center;flex:1;height:180px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
+.wheel{position:relative;display:flex;flex:1;height:180px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
 .wheel .wband{position:absolute;left:0;right:0;top:72px;height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);pointer-events:none}
 .wcol{flex:1;overflow-y:auto;scroll-snap-type:y mandatory;padding:72px 0;scrollbar-width:none;-ms-overflow-style:none;mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%)}
 .wcol::-webkit-scrollbar{display:none}
 .wi{height:36px;display:flex;align-items:center;justify-content:center;scroll-snap-align:center;font:700 17px var(--f-mono,inherit);color:var(--muted)}
 .wi.sel{color:var(--fg)}
-.wsep{font-weight:700;font-size:18px;color:var(--muted)}
+.wsep{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:var(--muted)}
 .f textarea{min-height:64px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .labs{display:flex;flex-wrap:wrap;gap:6px}
