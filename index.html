@@ -385,8 +385,10 @@ function vInbox(){
 
 function render(){
   renderNav();
+  document.documentElement.classList.toggle('touch',touchUsed);
   const m=document.getElementById('main');
   m.innerHTML={oggi:vOggi,calendario:vCal,board:vBoard,inbox:vInbox}[S.view]();
+  if(touchUsed||matchMedia('(pointer: coarse)').matches)m.querySelectorAll('[draggable="true"]').forEach(x=>x.draggable=false);
 }
 
 /* ---------- editor ---------- */
@@ -495,9 +497,9 @@ document.addEventListener('submit',e=>{
 });
 /* drag & drop */
 let dragId=null;
-document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag]');if(!t)return;dragId=t.dataset.drag;t.classList.add('dragging');try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}});
+document.addEventListener('dragstart',e=>{if(T||touchUsed){e.preventDefault();return}const t=e.target.closest('[data-drag]');if(!t)return;dragId=t.dataset.drag;t.classList.add('dragging');try{e.dataTransfer.setData('text/plain',dragId)}catch(_){}});
 document.addEventListener('dragend',e=>{dragId=null;document.querySelectorAll('.dragging,.over').forEach(x=>x.classList.remove('dragging','over'))});
-document.addEventListener('dragover',e=>{const z=e.target.closest('[data-drop-list],[data-drop-day]');if(z&&dragId){e.preventDefault();document.querySelectorAll('.over').forEach(x=>x!==z&&x.classList.remove('over'));z.classList.add('over')}});
+document.addEventListener('dragover',e=>{const cl=document.querySelector('.cols');if(cl&&dragId){const z=Math.max(60,innerWidth*.15);if(e.clientX>innerWidth-z)cl.scrollLeft+=12;else if(e.clientX<z)cl.scrollLeft-=12}const z=e.target.closest('[data-drop-list],[data-drop-day]');if(z&&dragId){e.preventDefault();document.querySelectorAll('.over').forEach(x=>x!==z&&x.classList.remove('over'));z.classList.add('over')}});
 function dropOn(target){
   const z=target&&target.closest('[data-drop-list],[data-drop-day]');const c=card(dragId);if(!z||!c)return false;
   if(z.dataset.dropDay){c.date=z.dataset.dropDay;c.notified=false;S.sel=c.date}
@@ -510,9 +512,11 @@ function dropOn(target){
 document.addEventListener('drop',e=>{if(!dragId)return;e.preventDefault();dropOn(e.target)});
 
 /* trascinamento su telefono: tieni premuto ~0,4 s, poi sposta il dito */
-let T=null,suppressClick=false;
+let T=null,suppressClick=false,touchUsed=false;
 document.addEventListener('touchstart',e=>{
+  touchUsed=true;
   const el=e.target.closest('.card[data-drag]');if(!el||e.touches.length>1)return;
+  document.querySelectorAll('[draggable="true"]').forEach(x=>x.draggable=false);
   const p=e.touches[0];
   T={el,x:p.clientX,y:p.clientY,active:false,timer:setTimeout(()=>{
     T.active=true;dragId=el.dataset.drag;try{navigator.vibrate&&navigator.vibrate(15)}catch(_){}
@@ -533,8 +537,8 @@ function autoScroll(){
   const cols=document.querySelector('.cols');let moved=false;
   if(cols){
     let dx=0;
-    if(x<zone)dx=-Math.ceil(22*(1-x/zone));
-    else if(x>innerWidth-zone)dx=Math.ceil(22*(1-(innerWidth-x)/zone));
+    if(x<zone)dx=-Math.ceil(14*(1-x/zone));
+    else if(x>innerWidth-zone)dx=Math.ceil(14*(1-(innerWidth-x)/zone));
     if(dx){const b=cols.scrollLeft;cols.scrollLeft+=dx;moved=cols.scrollLeft!==b}
   }
   const m=document.getElementById('main');let dy=0;
@@ -548,14 +552,14 @@ document.addEventListener('touchmove',e=>{
   if(!T.active){if(Math.hypot(p.clientX-T.x,p.clientY-T.y)>8){clearTimeout(T.timer);T=null}return}
   e.preventDefault();T.lx=p.clientX;T.ly=p.clientY;moveGhost(p.clientX,p.clientY);
 },{passive:false});
-function endTouch(){
+function endTouch(cancel){
   if(!T)return;clearTimeout(T.timer);
   if(T.active){suppressClick=true;setTimeout(()=>suppressClick=false,400);T.ghost.remove();
-    const under=T.lx!=null?document.elementFromPoint(T.lx,T.ly):null;
+    const under=!cancel&&T.lx!=null?document.elementFromPoint(T.lx,T.ly):null;
     if(!dropOn(under)){dragId=null;render()}}
   T=null;
 }
-document.addEventListener('touchend',endTouch);document.addEventListener('touchcancel',endTouch);
+document.addEventListener('touchend',()=>endTouch(false));document.addEventListener('touchcancel',()=>endTouch(true));
 document.addEventListener('contextmenu',e=>{if(e.target.closest('.card[data-drag]'))e.preventDefault()});
 document.addEventListener('click',e=>{if(suppressClick){e.stopPropagation();e.preventDefault()}},true);
 
