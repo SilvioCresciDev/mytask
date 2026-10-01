@@ -140,6 +140,8 @@ h2.late{color:var(--late)}
 .f{display:flex;flex-direction:column;gap:5px;min-width:0}
 .f label,.flab{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 .f input,.f select,.f textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+.timegrp{display:flex;align-items:center;gap:6px}
+.timegrp select{width:auto;flex:1;min-width:0}
 .f textarea{min-height:64px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .labs{display:flex;flex-wrap:wrap;gap:6px}
@@ -406,7 +408,7 @@ function drawEditor(){
     <div class="f"><label for="e-board">Board</label><select id="e-board"><option value="">Inbox</option>${S.boards.map(x=>`<option value="${x.id}" ${x.id===d.boardId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
     <div class="f"><label for="e-list">Colonna</label><select id="e-list" ${b?'':'disabled'}>${b?b.lists.map(l=>`<option value="${l.id}" ${l.id===d.listId?'selected':''}>${esc(l.name)}</option>`).join(''):'<option>—</option>'}</select></div>
     ${d.recur==='dates'?`<div class="f"><span class="flab">Data</span><span class="note" style="padding:9px 0">Scegli i giorni qui sotto</span></div>`:`<div class="f"><label for="e-date">Data</label><input type="date" id="e-date" value="${d.date||''}"></div>`}
-    <div class="f"><label for="e-time">Ora</label><input type="time" id="e-time" value="${d.time||''}"></div>
+    <div class="f"><label for="e-time-h">Ora</label><div class="timegrp"><select id="e-time-h"><option value="">—</option>${Array.from({length:24},(_,i)=>String(i).padStart(2,'0')).map(h=>`<option value="${h}" ${d.time&&d.time.slice(0,2)===h?'selected':''}>${h}</option>`).join('')}</select><span>:</span><select id="e-time-m">${Array.from({length:60},(_,i)=>String(i).padStart(2,'0')).map(m=>`<option value="${m}" ${d.time&&d.time.slice(3,5)===m?'selected':''}>${m}</option>`).join('')}</select></div></div>
     <div class="f"><label for="e-rem">Promemoria</label><select id="e-rem">${REM.map(([v,n])=>`<option value="${v??''}" ${String(d.reminder??'')===String(v??'')?'selected':''}>${n}</option>`).join('')}${d.reminder!=null&&!REM.some(r=>r[0]===d.reminder)?`<option value="${d.reminder}" selected>${d.reminder} min prima</option>`:''}</select></div>
     <div class="f"><label for="e-rec">Ripeti</label><select id="e-rec">${Object.entries(REC).map(([k,n])=>`<option value="${k}" ${d.recur===k?'selected':''}>${n}</option>`).join('')}</select></div>
    </div>
@@ -437,7 +439,8 @@ function picker(d){
 function readForm(){
   const g=id=>document.getElementById(id);
   draft.title=g('e-title').value.trim();draft.notes=g('e-notes').value;
-  if(g('e-date'))draft.date=g('e-date').value||null;draft.time=g('e-time').value||null;
+  if(g('e-date'))draft.date=g('e-date').value||null;
+  const eh=g('e-time-h').value;draft.time=eh?eh+':'+g('e-time-m').value:null;
   const r=g('e-rem').value;draft.reminder=r===''?null:Number(r);draft.recur=g('e-rec').value;
   document.querySelectorAll('[data-clt]').forEach(x=>draft.checklist[x.dataset.clt].t=x.value);
 }
