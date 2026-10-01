@@ -140,8 +140,14 @@ h2.late{color:var(--late)}
 .f{display:flex;flex-direction:column;gap:5px;min-width:0}
 .f label,.flab{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 .f input,.f select,.f textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
-.timegrp{display:flex;align-items:center;gap:6px}
-.timegrp select{width:auto;flex:1;min-width:0}
+.wheel-row{display:flex;align-items:center;gap:8px}
+.wheel{position:relative;display:flex;flex:1;height:180px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
+.wheel .wband{position:absolute;left:0;right:0;top:72px;height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);pointer-events:none}
+.wcol{flex:1;overflow-y:auto;scroll-snap-type:y mandatory;padding:72px 0;scrollbar-width:none;-ms-overflow-style:none;mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%)}
+.wcol::-webkit-scrollbar{display:none}
+.wi{height:36px;display:flex;align-items:center;justify-content:center;scroll-snap-align:center;font:700 17px var(--f-mono,inherit);color:var(--muted)}
+.wi.sel{color:var(--fg)}
+.wsep{font-weight:700;font-size:18px;color:var(--muted)}
 .f textarea{min-height:64px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .labs{display:flex;flex-wrap:wrap;gap:6px}
@@ -408,10 +414,10 @@ function drawEditor(){
     <div class="f"><label for="e-board">Board</label><select id="e-board"><option value="">Inbox</option>${S.boards.map(x=>`<option value="${x.id}" ${x.id===d.boardId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
     <div class="f"><label for="e-list">Colonna</label><select id="e-list" ${b?'':'disabled'}>${b?b.lists.map(l=>`<option value="${l.id}" ${l.id===d.listId?'selected':''}>${esc(l.name)}</option>`).join(''):'<option>—</option>'}</select></div>
     ${d.recur==='dates'?`<div class="f"><span class="flab">Data</span><span class="note" style="padding:9px 0">Scegli i giorni qui sotto</span></div>`:`<div class="f"><label for="e-date">Data</label><input type="date" id="e-date" value="${d.date||''}"></div>`}
-    <div class="f"><label for="e-time-h">Ora</label><div class="timegrp"><select id="e-time-h"><option value="">—</option>${Array.from({length:24},(_,i)=>String(i).padStart(2,'0')).map(h=>`<option value="${h}" ${d.time&&d.time.slice(0,2)===h?'selected':''}>${h}</option>`).join('')}</select><span>:</span><select id="e-time-m">${Array.from({length:60},(_,i)=>String(i).padStart(2,'0')).map(m=>`<option value="${m}" ${d.time&&d.time.slice(3,5)===m?'selected':''}>${m}</option>`).join('')}</select></div></div>
     <div class="f"><label for="e-rem">Promemoria</label><select id="e-rem">${REM.map(([v,n])=>`<option value="${v??''}" ${String(d.reminder??'')===String(v??'')?'selected':''}>${n}</option>`).join('')}${d.reminder!=null&&!REM.some(r=>r[0]===d.reminder)?`<option value="${d.reminder}" selected>${d.reminder} min prima</option>`:''}</select></div>
     <div class="f"><label for="e-rec">Ripeti</label><select id="e-rec">${Object.entries(REC).map(([k,n])=>`<option value="${k}" ${d.recur===k?'selected':''}>${n}</option>`).join('')}</select></div>
    </div>
+   ${timeWheel(d)}
    ${d.recur==='dates'?picker(d):''}
    <div class="f"><span class="flab">Etichette</span><div class="labs">${Object.entries(LABELS).map(([k,v])=>`<button type="button" class="chip lab" data-lab="${k}" aria-pressed="${d.labels.includes(k)}" style="--c:var(${v})">${k}</button>`).join('')}</div></div>
    <div class="f"><span class="flab">Checklist</span><div class="cl">${d.checklist.map((i,n)=>`<div class="cli"><input type="checkbox" class="check" data-cli="${n}" ${i.d?'checked':''} aria-label="Fatto"><input type="text" id="cl-${n}" data-clt="${n}" value="${esc(i.t)}"><button type="button" class="x" data-clx="${n}" aria-label="Rimuovi">×</button></div>`).join('')}
@@ -421,7 +427,31 @@ function drawEditor(){
    <div class="actions"><div>${d.id?`<button type="button" class="btn ghost danger" id="e-del">${draft._confirm?'Conferma eliminazione':'Elimina'}</button>`:''}</div>
     <div style="display:flex;gap:8px"><button type="button" class="btn" id="e-cancel">Annulla</button><button type="submit" class="btn primary">Salva</button></div></div>
   </form></div>`;
-  setTimeout(()=>{if(!draft._focused){document.getElementById('e-title')?.focus();draft._focused=true}},0);
+  setTimeout(()=>{if(!draft._focused){document.getElementById('e-title')?.focus();draft._focused=true}initWheel()},0);
+}
+const WHEEL_IT=36;
+function timeWheel(d){
+  if(!d.time)return `<div class="f"><span class="flab">Ora</span><button type="button" class="btn ghost" id="e-time-add" style="align-self:flex-start">+ Aggiungi orario</button></div>`;
+  const hs=Array.from({length:24},(_,i)=>pad(i)),ms=Array.from({length:60},(_,i)=>pad(i));
+  return `<div class="f"><span class="flab">Ora</span><div class="wheel-row">
+   <div class="wheel"><div class="wband"></div>
+    <div class="wcol" id="e-time-h">${hs.map(x=>`<div class="wi" data-v="${x}">${x}</div>`).join('')}</div>
+    <div class="wsep">:</div>
+    <div class="wcol" id="e-time-m">${ms.map(x=>`<div class="wi" data-v="${x}">${x}</div>`).join('')}</div>
+   </div>
+   <button type="button" class="btn ghost" id="e-time-clear" aria-label="Rimuovi orario">×</button>
+  </div></div>`;
+}
+function initWheel(){
+  const h=document.getElementById('e-time-h'),m=document.getElementById('e-time-m');
+  if(!h||!draft.time)return;
+  h.scrollTop=(+draft.time.slice(0,2))*WHEEL_IT;m.scrollTop=(+draft.time.slice(3,5))*WHEEL_IT;
+  markWheelSel(h);markWheelSel(m);
+}
+function markWheelSel(col){
+  const idx=Math.round(col.scrollTop/WHEEL_IT);
+  col.querySelectorAll('.wi.sel').forEach(x=>x.classList.remove('sel'));
+  col.children[idx]?.classList.add('sel');
 }
 function picker(d){
   const t=todayIso();d.dates=d.dates||[];
@@ -440,7 +470,6 @@ function readForm(){
   const g=id=>document.getElementById(id);
   draft.title=g('e-title').value.trim();draft.notes=g('e-notes').value;
   if(g('e-date'))draft.date=g('e-date').value||null;
-  const eh=g('e-time-h').value;draft.time=eh?eh+':'+g('e-time-m').value:null;
   const r=g('e-rem').value;draft.reminder=r===''?null:Number(r);draft.recur=g('e-rec').value;
   document.querySelectorAll('[data-clt]').forEach(x=>draft.checklist[x.dataset.clt].t=x.value);
 }
@@ -455,7 +484,23 @@ document.getElementById('modal').addEventListener('click',e=>{
   if(t.dataset.clx!==undefined){readForm();draft.checklist.splice(+t.dataset.clx,1);drawEditor()}
   if(t.id==='cl-add'){readForm();const v=document.getElementById('cl-new').value.trim();if(v){draft.checklist.push({t:v,d:false});drawEditor();document.getElementById('cl-new').focus()}}
   if(t.id==='e-del'){if(!draft._confirm){readForm();draft._confirm=true;drawEditor()}else{S.cards=S.cards.filter(c=>c.id!==draft.id);save();closeEditor();render();toast('Card eliminata')}}
+  if(t.id==='e-time-add'){readForm();const n=new Date();draft.time=pad(n.getHours())+':'+pad(n.getMinutes());drawEditor();return}
+  if(t.id==='e-time-clear'){readForm();draft.time=null;drawEditor();return}
 });
+let wheelTO;
+document.getElementById('modal').addEventListener('scroll',e=>{
+  const t=e.target;if(t.id!=='e-time-h'&&t.id!=='e-time-m')return;
+  markWheelSel(t);
+  clearTimeout(wheelTO);
+  wheelTO=setTimeout(()=>{
+    const h=document.getElementById('e-time-h'),m=document.getElementById('e-time-m');
+    if(!h||!m)return;
+    const hv=Math.round(h.scrollTop/WHEEL_IT),mv=Math.round(m.scrollTop/WHEEL_IT);
+    h.scrollTop=hv*WHEEL_IT;m.scrollTop=mv*WHEEL_IT;
+    draft.time=pad(hv)+':'+pad(mv);
+    markWheelSel(h);markWheelSel(m);
+  },120);
+},true);
 document.getElementById('modal').addEventListener('change',e=>{
   if(e.target.id==='e-board'){readForm();draft.boardId=e.target.value||null;const b=board(draft.boardId);draft.listId=b?b.lists[0].id:null;drawEditor()}
   if(e.target.id==='e-list'){draft.listId=e.target.value}
