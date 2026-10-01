@@ -6,13 +6,13 @@ MyTask è un'agenda personale che unisce un calendario e delle board in stile ka
 
 ## Cosa fa
 
-- **Oggi**: le cose di oggi in ordine di orario, quelle in ritardo in cima e un'anteprima dei prossimi 7 giorni.
-- **Calendario**: vista mensile con tutte le card datate, comprese le ripetizioni future.
-- **Board**: colonne "Da fare" e "Fatto" (puoi aggiungerne altre) in cui spostare le card trascinandole. Dal telefono tieni premuta la card, poi spostala. Avvicinandoti al bordo, le colonne scorrono da sole.
-- **Inbox**: per annotare qualcosa al volo e smistarlo dopo in una board o dargli una data.
-- **Card**: titolo, data e ora, promemoria, etichette, checklist e note.
-- **Ripetizioni**: ogni giorno, ogni 2, 3, 4, 5 o 6 giorni, ogni settimana, ogni mese, oppure date sparse scelte toccando i giorni su un calendario. Quando completi una card che si ripete, passa da sola alla data successiva.
-- **Promemoria**: notifiche Android con i pulsanti "Fatto" e "Rimanda di 1 ora".
+* **Oggi**: le cose di oggi in ordine di orario, quelle in ritardo in cima e un'anteprima dei prossimi 7 giorni.
+* **Calendario**: vista mensile con tutte le card datate, comprese le ripetizioni future.
+* **Board**: colonne "Da fare" e "Fatto" (puoi aggiungerne altre) in cui spostare le card trascinandole. Dal telefono tieni premuta la card, poi spostala. Avvicinandoti al bordo, le colonne scorrono da sole.
+* **Inbox**: per annotare qualcosa al volo e smistarlo dopo in una board o dargli una data.
+* **Card**: titolo, data e ora, promemoria, etichette, checklist e note.
+* **Ripetizioni**: ogni giorno, ogni 2, 3, 4, 5 o 6 giorni, ogni settimana, ogni mese, oppure date sparse scelte toccando i giorni su un calendario. Quando completi una card che si ripete, passa da sola alla data successiva.
+* **Promemoria**: notifiche Android con i pulsanti "Fatto" e "Rimanda di 1 ora".
 
 ## Privacy
 
@@ -22,15 +22,15 @@ L'app può caricare solo i propri file e i caratteri da Google Fonts. Una regola
 
 ## Installazione
 
-### 1. Pubblicare l'app (una volta sola, dal computer)
+### 1\. Pubblicare l'app (una volta sola, dal computer)
 
 1. Crea un account su [github.com](https://github.com) e attiva la verifica in due passaggi (*Settings › Password and authentication*).
 2. Crea un repository pubblico chiamato `mytask` con **New repository**.
 3. Carica i file con **Add file › Upload files**, trascinando i file della cartella (non lo zip), poi **Commit changes**.
 4. Vai su **Settings › Pages**. In *Source* scegli *Deploy from a branch*, branch `main`, cartella `/ (root)`, e premi **Save**.
-5. Dopo un paio di minuti l'app è online su `https://TUONOME.github.io/mytask/`.
+5. Dopo un paio di minuti l'app è online su `https://silviocrescidev.github.io/mytask/`.
 
-### 2. Installarla sul telefono Android
+### 2\. Installarla sul telefono Android
 
 1. Apri l'indirizzo con **Chrome**.
 2. Tocca il menu **⋮** e scegli **Installa app** (oppure *Aggiungi a schermata Home › Installa*).
@@ -50,22 +50,25 @@ I dati restano dove sono. L'icona sulla Home può impiegare qualche giorno ad ag
 
 ## Limiti attuali
 
-- **Promemoria**: li controlla l'app stessa. Arrivano puntuali se l'hai aperta di recente, ma se Android la chiude del tutto possono arrivare in ritardo o alla riapertura.
-- **Nessuna sincronizzazione**: ogni dispositivo ha i suoi dati e non c'è un backup.
-- **Nessuna sveglia vera**: un'app web non può far suonare una sveglia a telefono bloccato.
+* **Promemoria**: li controlla l'app stessa. Arrivano puntuali se l'hai aperta di recente, ma se Android la chiude del tutto possono arrivare in ritardo o alla riapertura.
+* **Nessuna sincronizzazione**: ogni dispositivo ha i suoi dati e non c'è un backup.
+* **Nessuna sveglia vera**: un'app web non può far suonare una sveglia a telefono bloccato.
 
 ## Prossimi passi
 
-- Sincronizzazione e backup su un servizio gratuito, con accesso tramite email.
-- Notifiche push inviate da un server, puntuali anche ad app chiusa.
-- In futuro, una versione Android nativa con vere sveglie.
+* Sincronizzazione e backup su un servizio gratuito, con accesso tramite email.
+* Notifiche push inviate da un server, puntuali anche ad app chiusa.
+* In futuro, una versione Android nativa con vere sveglie.
 
 ## File del progetto
 
-| File | A cosa serve |
-|---|---|
-| `index.html` | L'app: interfaccia, logica e stile |
-| `sw.js` | Service worker: funzionamento offline e pulsanti delle notifiche |
-| `manifest.webmanifest` | Nome, colori e icone per l'installazione |
-| `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` | Icone dell'app |
-| `badge-96.png` | Piccola icona nella barra delle notifiche |
+|File|A cosa serve|
+|-|-|
+|`index.html`|L'app: interfaccia, logica e stile|
+|`sw.js`|Service worker: funzionamento offline e pulsanti delle notifiche|
+|`manifest.webmanifest`|Nome, colori e icone per l'installazione|
+|`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`|Icone dell'app|
+|`badge-96.png`|Piccola icona nella barra delle notifiche|
+
+
+
