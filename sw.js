@@ -1,5 +1,5 @@
 // MyTask service worker: funziona offline e gestisce i pulsanti delle notifiche
-const CACHE='mytask-v6';
+const CACHE='mytask-v7';
 const FILES=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
@@ -8,7 +8,7 @@ self.addEventListener('fetch',e=>{
   const url=new URL(req.url);
   if(url.origin===location.origin){
     // prima la rete (per ricevere gli aggiornamenti), poi la copia salvata se sei offline
-    e.respondWith(fetch(req).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put(req,c));return r}).catch(()=>caches.match(req).then(r=>r||caches.match('index.html'))));
+    e.respondWith(fetch(req,{cache:'no-store'}).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put(req,c));return r}).catch(()=>caches.match(req).then(r=>r||caches.match('index.html'))));
   }else if(url.hostname.endsWith('gstatic.com')||url.hostname.endsWith('googleapis.com')){
     e.respondWith(caches.match(req).then(r=>r||fetch(req).then(n=>{const c=n.clone();caches.open(CACHE).then(x=>x.put(req,c));return n})));
   }
