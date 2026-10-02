@@ -12,9 +12,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
 
-<script>try{if(localStorage.getItem('mytask-style')!=='classic')document.documentElement.dataset.style='color'}catch(e){document.documentElement.dataset.style='color'}</script>
+<script>(function(){let v=null;try{v=localStorage.getItem('mytask-style')}catch(e){}if(v==='classic')return;document.documentElement.dataset.style=['color','pastel','mint','ocean','sunset','cats','cartoon','catoon'].includes(v)?v:'color'})()</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&family=Fredoka:wght@500;700&display=swap">
 <style>
 /* Layout: app a una schermata — barra laterale su desktop, barra di navigazione in basso su telefono; contenuto al centro */
 :root{
@@ -194,55 +194,141 @@ h2.late{color:var(--late)}
   .cal .dow{padding:6px 2px;text-align:center;font-size:10px}
   .grid2{grid-template-columns:1fr}
 }
-/* Stile "colorato": variante attivabile con data-style="color" su <html>; senza attributo resta lo stile classico. Segue chiaro/scuro di sistema */
+/* Temi: data-style="<tema>" su <html>; senza attributo resta lo stile classico. Regole comuni a tutti i temi, poi i colori di ciascuno */
+:root[data-style]{--accent-2:var(--accent);--accent-3:var(--accent);--grad:linear-gradient(120deg,var(--accent),var(--accent-2))}
+[data-style] body{background:radial-gradient(900px 500px at 100% -10%,color-mix(in srgb,var(--accent-2) 16%,transparent),transparent 70%),radial-gradient(700px 400px at -10% 110%,color-mix(in srgb,var(--accent-3) 18%,transparent),transparent 70%),var(--bg);background-attachment:fixed}
+[data-style] .side{background:color-mix(in srgb,var(--surface) 75%,transparent);backdrop-filter:blur(8px)}
+[data-style] .brand,[data-style] h1{background:linear-gradient(120deg,var(--accent),var(--accent-2) 60%,var(--accent-3));-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-style] :is(.nav,.bottom) button:nth-child(1) svg{color:var(--accent-3)}
+[data-style] :is(.nav,.bottom) button:nth-child(2) svg{color:var(--l-blue)}
+[data-style] :is(.nav,.bottom) button:nth-child(3) svg{color:var(--accent-2)}
+[data-style] :is(.nav,.bottom) button:nth-child(4) svg{color:var(--l-green)}
+[data-style] .nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+[data-style] h2{color:var(--accent-2)}
+[data-style] h2.late{color:var(--late)}
+[data-style] .rows{box-shadow:var(--shadow);border-color:transparent}
+[data-style] .check{border-color:var(--accent-2);border-radius:50%}
+[data-style] .check:checked{background:var(--ok);border-color:var(--ok)}
+[data-style] .chip.lab{background:color-mix(in srgb,var(--c) 20%,transparent);font-weight:700}
+[data-style] .btn.primary,[data-style] .fab{background:var(--grad);border-color:transparent}
+[data-style] .fab{border-radius:50%;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 45%,transparent)}
+[data-style] .day.today .dn{background:var(--grad)}
+[data-style] .day.sel{box-shadow:inset 0 0 0 2px var(--accent-2)}
+[data-style] .cal{background:var(--line);box-shadow:var(--shadow)}
+[data-style] .cal .dow{color:var(--accent-2)}
+[data-style] .tab[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 18%,var(--surface));border-color:var(--c)}
+[data-style] .col:nth-child(4n+1){background:color-mix(in srgb,var(--l-blue) 14%,var(--bg))}
+[data-style] .col:nth-child(4n+2){background:color-mix(in srgb,var(--accent-3) 16%,var(--bg))}
+[data-style] .col:nth-child(4n+3){background:color-mix(in srgb,var(--accent-2) 14%,var(--bg))}
+[data-style] .col:nth-child(4n){background:color-mix(in srgb,var(--l-green) 14%,var(--bg))}
+[data-style] .card{border-left-width:5px;border-radius:10px}
+[data-style] .pill{background:var(--grad);color:var(--accent-fg)}
+[data-style] .empty{border-color:color-mix(in srgb,var(--accent-2) 40%,transparent)}
+[data-style] .sheet{border-top:5px solid var(--accent)}
+[data-style] .nh b{background:var(--grad)}
+[data-style] .bottom{background:color-mix(in srgb,var(--surface) 85%,transparent);backdrop-filter:blur(8px)}
+[data-style] .bottom button[aria-current="page"]{color:var(--accent)}
+/* Colorato: segue chiaro/scuro di sistema */
 :root[data-style="color"]{
   --bg:#fff6ec; --surface:#ffffff; --surface-2:#ffecdc; --fg:#1d1433; --muted:#6b5f7f; --line:#f1dcc9;
   --accent:#f0386b; --accent-2:#7b4dff; --accent-3:#ff9f1c; --accent-fg:#ffffff; --accent-soft:#ffe0ea;
   --late:#e8590c; --ok:#0fb47e; --shadow:0 2px 0 rgb(29 20 51 / .06), 0 6px 18px rgb(240 56 107 / .10);
   --l-red:#f03e3e; --l-blue:#1c7ed6; --l-green:#2f9e44; --l-violet:#ae3ec9; --l-amber:#f08c00;
-  --grad:linear-gradient(120deg,var(--accent),var(--accent-2));
   --r:14px; color-scheme:light}
 @media (prefers-color-scheme: dark){:root[data-style="color"]:not([data-theme="light"]){
   --bg:#160f29; --surface:#211838; --surface-2:#2c2150; --fg:#f7f1ff; --muted:#b3a6d1; --line:#3a2e62;
   --accent:#ff5c8d; --accent-2:#9d7bff; --accent-3:#ffb347; --accent-fg:#ffffff; --accent-soft:#4a2450;
   --late:#ff8c4a; --ok:#3ddc97; --shadow:0 6px 18px rgb(0 0 0 / .35);
   --l-red:#ff6b6b; --l-blue:#4dabf7; --l-green:#51cf66; --l-violet:#da77f2; --l-amber:#ffc048; color-scheme:dark}}
-[data-style="color"] body{background:radial-gradient(900px 500px at 100% -10%,color-mix(in srgb,var(--accent-2) 16%,transparent),transparent 70%),radial-gradient(700px 400px at -10% 110%,color-mix(in srgb,var(--accent-3) 18%,transparent),transparent 70%),var(--bg);background-attachment:fixed}
-[data-style="color"] .side{background:color-mix(in srgb,var(--surface) 75%,transparent);backdrop-filter:blur(8px)}
-[data-style="color"] .brand,[data-style="color"] h1{background:linear-gradient(120deg,var(--accent),var(--accent-2) 60%,var(--accent-3));-webkit-background-clip:text;background-clip:text;color:transparent}
-[data-style="color"] .nav button:nth-child(1) svg{color:var(--accent-3)}
-[data-style="color"] .nav button:nth-child(2) svg{color:var(--l-blue)}
-[data-style="color"] .nav button:nth-child(3) svg{color:var(--accent-2)}
-[data-style="color"] .nav button:nth-child(4) svg{color:var(--l-green)}
-[data-style="color"] .nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
-[data-style="color"] h2{color:var(--accent-2)}
-[data-style="color"] h2.late{color:var(--late)}
-[data-style="color"] .rows{box-shadow:var(--shadow);border-color:transparent}
-[data-style="color"] .check{border-color:var(--accent-2);border-radius:50%}
-[data-style="color"] .check:checked{background:var(--ok);border-color:var(--ok)}
-[data-style="color"] .chip.lab{background:color-mix(in srgb,var(--c) 20%,transparent);font-weight:700}
-[data-style="color"] .btn.primary,[data-style="color"] .fab{background:var(--grad);border-color:transparent}
-[data-style="color"] .fab{border-radius:50%;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 45%,transparent)}
-[data-style="color"] .day.today .dn{background:var(--grad)}
-[data-style="color"] .day.sel{box-shadow:inset 0 0 0 2px var(--accent-2)}
-[data-style="color"] .cal{background:var(--line);box-shadow:var(--shadow)}
-[data-style="color"] .cal .dow{color:var(--accent-2)}
-[data-style="color"] .tab[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 18%,var(--surface));border-color:var(--c)}
-[data-style="color"] .col:nth-child(4n+1){background:color-mix(in srgb,var(--l-blue) 14%,var(--bg))}
-[data-style="color"] .col:nth-child(4n+2){background:color-mix(in srgb,var(--accent-3) 16%,var(--bg))}
-[data-style="color"] .col:nth-child(4n+3){background:color-mix(in srgb,var(--accent-2) 14%,var(--bg))}
-[data-style="color"] .col:nth-child(4n){background:color-mix(in srgb,var(--l-green) 14%,var(--bg))}
-[data-style="color"] .card{border-left-width:5px;border-radius:10px}
-[data-style="color"] .pill{background:var(--grad);color:var(--accent-fg)}
-[data-style="color"] .empty{border-color:color-mix(in srgb,var(--accent-2) 40%,transparent)}
-[data-style="color"] .sheet{border-top:5px solid var(--accent)}
-[data-style="color"] .nh b{background:var(--grad)}
-[data-style="color"] .bottom{background:color-mix(in srgb,var(--surface) 85%,transparent);backdrop-filter:blur(8px)}
-[data-style="color"] .bottom button:nth-child(1) svg{color:var(--accent-3)}
-[data-style="color"] .bottom button:nth-child(2) svg{color:var(--l-blue)}
-[data-style="color"] .bottom button:nth-child(3) svg{color:var(--accent-2)}
-[data-style="color"] .bottom button:nth-child(4) svg{color:var(--l-green)}
-[data-style="color"] .bottom button[aria-current="page"]{color:var(--accent)}
+/* Pastello: chiaro, lilla e menta */
+:root[data-style="pastel"]{
+  --bg:#f7f3ff; --surface:#ffffff; --surface-2:#efe8ff; --fg:#2a2440; --muted:#736b8c; --line:#e4dcf5;
+  --accent:#8b6cf0; --accent-2:#3fb994; --accent-3:#ff8fab; --accent-fg:#ffffff; --accent-soft:#ebe4ff;
+  --late:#e0661f; --ok:#2fae86; --shadow:0 6px 18px rgb(139 108 240 / .12);
+  --l-red:#e5566b; --l-blue:#4c8bf5; --l-green:#2fae86; --l-violet:#9b6cf0; --l-amber:#e09a2d;
+  --r:16px; color-scheme:light}
+/* Menta: chiaro, verde e azzurro */
+:root[data-style="mint"]{
+  --bg:#eefaf5; --surface:#ffffff; --surface-2:#dcf3ea; --fg:#10302a; --muted:#557069; --line:#cfe9df;
+  --accent:#0f9f76; --accent-2:#0ea5e9; --accent-3:#f5a524; --accent-fg:#ffffff; --accent-soft:#d4f4e8;
+  --late:#d9480f; --ok:#0f9f76; --shadow:0 6px 18px rgb(15 159 118 / .12);
+  --l-red:#e03131; --l-blue:#1c7ed6; --l-green:#2b9a66; --l-violet:#9c36b5; --l-amber:#e67700;
+  --r:14px; color-scheme:light}
+/* Oceano: scuro, turchese e blu */
+:root[data-style="ocean"]{
+  --bg:#061a26; --surface:#0b2735; --surface-2:#113447; --fg:#e6f6fb; --muted:#8fb3c2; --line:#1a4257;
+  --accent:#22d3ee; --accent-2:#3b82f6; --accent-3:#34d399; --accent-fg:#04131b; --accent-soft:#0f3d52;
+  --late:#fb923c; --ok:#34d399; --shadow:0 6px 18px rgb(0 0 0 / .4);
+  --l-red:#fb7185; --l-blue:#60a5fa; --l-green:#34d399; --l-violet:#a78bfa; --l-amber:#fbbf24;
+  --r:14px; color-scheme:dark}
+/* Tramonto: scuro caldo, arancio e fucsia */
+:root[data-style="sunset"]{
+  --bg:#1e0e16; --surface:#2a1420; --surface-2:#371a2a; --fg:#fff0ea; --muted:#c9a1a9; --line:#4a2435;
+  --accent:#ff7a45; --accent-2:#ff3d77; --accent-3:#ffd166; --accent-fg:#1e0e16; --accent-soft:#4d2230;
+  --late:#ffb703; --ok:#7ee0a1; --shadow:0 6px 18px rgb(0 0 0 / .4);
+  --l-red:#ff6b6b; --l-blue:#74a7ff; --l-green:#7ee0a1; --l-violet:#d98cff; --l-amber:#ffd166;
+  --r:14px; color-scheme:dark}
+/* Gatti: beige caldo, arancio "tigrato", impronte di zampa sullo sfondo */
+:root[data-style="cats"]{
+  --bg:#fbf3e8; --surface:#fffaf3; --surface-2:#f6e7d3; --fg:#3b2a1f; --muted:#8a705c; --line:#ecd9c1;
+  --accent:#ee7d1f; --accent-2:#a0583a; --accent-3:#f5b84a; --accent-fg:#ffffff; --accent-soft:#fde3c8;
+  --late:#c2410c; --ok:#5f9e4f; --shadow:0 6px 18px rgb(160 88 58 / .14);
+  --l-red:#d9534f; --l-blue:#4f7fc2; --l-green:#5f9e4f; --l-violet:#9a62c4; --l-amber:#d98a1a;
+  --paw:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='%23a0583a' fill-opacity='.08' transform='rotate(-18 45 45)'%3E%3Cellipse cx='45' cy='54' rx='13' ry='11'/%3E%3Cellipse cx='30' cy='38' rx='5' ry='6.5'/%3E%3Cellipse cx='40' cy='31' rx='5' ry='6.5'/%3E%3Cellipse cx='51' cy='31' rx='5' ry='6.5'/%3E%3Cellipse cx='61' cy='38' rx='5' ry='6.5'/%3E%3C/g%3E%3C/svg%3E");
+  --r:16px; color-scheme:light}
+/* Cartoon: giallo fumetto, bordi neri spessi, ombre piene */
+:root[data-style="cartoon"]{
+  --bg:#fff6cc; --surface:#ffffff; --surface-2:#ffe98a; --fg:#161616; --muted:#4d4d4d; --line:#161616;
+  --accent:#ff3d7f; --accent-2:#1fb6ff; --accent-3:#ffcf1f; --accent-fg:#ffffff; --accent-soft:#ffd6e5;
+  --late:#e8590c; --ok:#1fbf6b; --ink:#161616; --shadow:4px 4px 0 var(--ink);
+  --l-red:#ff3b3b; --l-blue:#1f7bff; --l-green:#1fa85a; --l-violet:#9b4dff; --l-amber:#ff9500;
+  --r:16px; color-scheme:light}
+/* Gatti cartoon: rosa fumetto con gattini */
+:root[data-style="catoon"]{
+  --bg:#ffe8f1; --surface:#ffffff; --surface-2:#ffd0e2; --fg:#2b1830; --muted:#6e4f6a; --line:#2b1830;
+  --accent:#ff5c9a; --accent-2:#8f5cff; --accent-3:#ffb43d; --accent-fg:#ffffff; --accent-soft:#ffd0e2;
+  --late:#e8590c; --ok:#22b07a; --ink:#2b1830; --shadow:4px 4px 0 var(--ink);
+  --l-red:#ff4d6d; --l-blue:#3d8bff; --l-green:#22b07a; --l-violet:#8f5cff; --l-amber:#ff9f1c;
+  --paw:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='%238f5cff' fill-opacity='.1' transform='rotate(-18 45 45)'%3E%3Cellipse cx='45' cy='54' rx='13' ry='11'/%3E%3Cellipse cx='30' cy='38' rx='5' ry='6.5'/%3E%3Cellipse cx='40' cy='31' rx='5' ry='6.5'/%3E%3Cellipse cx='51' cy='31' rx='5' ry='6.5'/%3E%3Cellipse cx='61' cy='38' rx='5' ry='6.5'/%3E%3C/g%3E%3C/svg%3E");
+  --r:16px; color-scheme:light}
+/* Extra per i temi con i gatti */
+:is([data-style="cats"],[data-style="catoon"]) body{background:var(--paw),var(--bg);background-attachment:fixed}
+:is([data-style="cats"],[data-style="catoon"]) :is(.brand,h1){background:none;color:var(--accent-2)}
+:is([data-style="cats"],[data-style="catoon"]) h1::after{content:" 🐾";font-size:.6em;vertical-align:middle}
+:is([data-style="cats"],[data-style="catoon"]) .empty::before{content:"😺 "}
+:is([data-style="cats"],[data-style="catoon"]) .col{position:relative;margin-top:14px}
+:is([data-style="cats"],[data-style="catoon"]) .col::before,:is([data-style="cats"],[data-style="catoon"]) .col::after{content:"";position:absolute;top:-13px;width:24px;height:16px;background:inherit;clip-path:polygon(50% 0,100% 100%,0 100%)}
+:is([data-style="cats"],[data-style="catoon"]) .col::before{left:16px}
+:is([data-style="cats"],[data-style="catoon"]) .col::after{right:16px}
+:is([data-style="cats"],[data-style="catoon"]) .sheet h3::before{content:"🐈 "}
+/* Extra per i temi cartoon */
+:is([data-style="cartoon"],[data-style="catoon"]){--f-body:"Fredoka", system-ui, sans-serif;--f-display:"Fredoka", system-ui, sans-serif}
+:is([data-style="cartoon"],[data-style="catoon"]) :is(.rows,.col,.card,.btn:not(.ghost),.tab,.sheet,.notif,.empty,.cal,.fab,.capture input,.add input,.f input,.f select,.f textarea){border:2.5px solid var(--ink);box-shadow:var(--shadow)}
+:is([data-style="cartoon"],[data-style="catoon"]) .card{border-left-width:7px}
+:is([data-style="cartoon"],[data-style="catoon"]) :is(.row,.irow){border-top:2px solid var(--ink)}
+:is([data-style="cartoon"],[data-style="catoon"]) :is(.row,.irow):first-child{border-top:0}
+:is([data-style="cartoon"],[data-style="catoon"]) :is(.btn,.tab,.fab):active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+:is([data-style="cartoon"],[data-style="catoon"]) :is(.brand,h1){background:none;color:var(--fg);text-shadow:3px 3px 0 var(--accent-3)}
+:is([data-style="cartoon"],[data-style="catoon"]) .check{border:2.5px solid var(--ink);border-radius:8px}
+:is([data-style="cartoon"],[data-style="catoon"]) .chip.lab{border:2px solid var(--ink)}
+:is([data-style="cartoon"],[data-style="catoon"]) .side{border-right:2.5px solid var(--ink)}
+:is([data-style="cartoon"],[data-style="catoon"]) .bottom{border-top:2.5px solid var(--ink)}
+:is([data-style="cartoon"],[data-style="catoon"]) .cal{background:var(--ink);gap:2px}
+:is([data-style="cartoon"],[data-style="catoon"]) .nav button[aria-current="page"]{outline:2px solid var(--ink)}
+:is([data-style="cartoon"],[data-style="catoon"]) .col::before,:is([data-style="cartoon"],[data-style="catoon"]) .col::after{top:-15px;background:var(--ink)}
+/* Selettore temi */
+.palette-btn{width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%}
+.palette-btn svg{width:20px;height:20px}
+.side-foot .palette-side{display:flex;align-items:center;gap:8px;justify-content:center}
+.side-foot .palette-side svg{width:16px;height:16px}
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.theme{border:2px solid var(--line);border-radius:14px;padding:0;overflow:hidden;background:var(--surface);text-align:left;display:flex;flex-direction:column}
+.theme[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.theme .tp{height:74px;position:relative;display:flex;align-items:flex-end;gap:5px;padding:10px;font-size:26px;line-height:1}
+.theme .tp i{width:16px;height:16px;border-radius:50%;display:inline-block;border:2px solid rgb(255 255 255 / .6)}
+.theme .tp span{position:absolute;right:10px;top:10px}
+.theme .tn{padding:8px 10px;font-weight:700;font-size:14px}
+.theme .td{font-weight:400;font-size:12px;color:var(--muted);display:block}
 </style>
 
 </head>
@@ -253,7 +339,7 @@ h2.late{color:var(--late)}
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">
       <button class="btn" id="testNotif" type="button">Prova una notifica</button>
-      <button class="btn" id="styleTog" type="button"></button>
+      <button class="btn palette-side" id="styleTog" type="button"></button>
       <button class="btn ghost" id="reset" type="button">Ripristina esempi</button>
       <span>I dati restano salvati su questo dispositivo.</span>
     </div>
@@ -273,6 +359,7 @@ const I={
  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>',
  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>',
  rep:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg>',
+ palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.2" fill="currentColor"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
 };
 const LABELS={urgente:'--l-red',lavoro:'--l-blue',casa:'--l-green',personale:'--l-violet',idea:'--l-violet',attesa:'--l-amber'};
@@ -330,10 +417,29 @@ const DONE_KEEP_DAYS=30;
 function clearCards(test){let del=0,arc=0;S.cards=S.cards.filter(c=>{if(c.archived||!test(c))return true;if(c.date){c.archived=true;c.listId=null;arc++;return true}del++;return false});return {del,arc}}
 function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,r=clearCards(c=>c.done&&c.doneAt&&c.doneAt<lim);return r.del+r.arc}
 function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
-const isColor=()=>document.documentElement.dataset.style==='color';
-const styleLabel=()=>isColor()?'Stile classico':'Stile colorato';
-function syncStyle(){const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=isColor()?'#f0386b':'#1b2440';const b=document.getElementById('styleTog');if(b)b.textContent=styleLabel()}
-function toggleStyle(){const r=document.documentElement;if(isColor()){delete r.dataset.style;try{localStorage.setItem('mytask-style','classic')}catch(e){}}else{r.dataset.style='color';try{localStorage.setItem('mytask-style','color')}catch(e){}}syncStyle()}
+// temi: id (null = classico), nome, descrizione, anteprima [sfondo, superficie, accento, accento 2], emoji, colore barra di sistema
+const THEMES=[
+ [null,'Classico','Blu, segue chiaro/scuro',['#edf0f5','#ffffff','#2b4fd4','#86a0ff'],'','#1b2440'],
+ ['color','Colorato','Rosa e viola, chiaro/scuro',['#fff6ec','#ffffff','#f0386b','#7b4dff'],'🎨','#f0386b'],
+ ['pastel','Pastello','Chiaro, lilla e menta',['#f7f3ff','#ffffff','#8b6cf0','#3fb994'],'🍬','#8b6cf0'],
+ ['mint','Menta','Chiaro, verde fresco',['#eefaf5','#ffffff','#0f9f76','#0ea5e9'],'🌿','#0f9f76'],
+ ['ocean','Oceano','Scuro, turchese',['#061a26','#0b2735','#22d3ee','#3b82f6'],'🌊','#061a26'],
+ ['sunset','Tramonto','Scuro, arancio e fucsia',['#1e0e16','#2a1420','#ff7a45','#ff3d77'],'🌅','#1e0e16'],
+ ['cats','Gatti','Zampette e orecchie',['#fbf3e8','#fffaf3','#ee7d1f','#a0583a'],'🐱','#ee7d1f'],
+ ['cartoon','Cartoon','Bordi neri, stile fumetto',['#fff6cc','#ffe98a','#ff3d7f','#1fb6ff'],'💥','#ffcf1f'],
+ ['catoon','Gatti cartoon','Fumetto rosa coi gattini',['#ffe8f1','#ffd0e2','#ff5c9a','#8f5cff'],'😸','#ff5c9a']
+];
+const curTheme=()=>document.documentElement.dataset.style||null;
+function syncStyle(){const t=THEMES.find(x=>x[0]===curTheme())||THEMES[0];const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t[5];const b=document.getElementById('styleTog');if(b)b.innerHTML=I.palette+'Temi'}
+function setTheme(id){const r=document.documentElement;if(id)r.dataset.style=id;else delete r.dataset.style;try{localStorage.setItem('mytask-style',id||'classic')}catch(e){}syncStyle()}
+function openThemes(){
+  const cur=curTheme();
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-label="Temi"><h3>Temi</h3>
+   <div class="themes">${THEMES.map(([id,n,d,c,em])=>`<button type="button" class="theme" data-theme-pick="${id||'classic'}" aria-pressed="${id===cur}">
+     <span class="tp" style="background:linear-gradient(135deg,${c[0]} 55%,${c[1]})"><i style="background:${c[2]}"></i><i style="background:${c[3]}"></i>${em?`<span>${em}</span>`:''}</span>
+     <span class="tn">${n}<span class="td">${d}</span></span></button>`).join('')}</div>
+   <div class="actions"><span class="note">La scelta resta salvata su questo dispositivo.</span><button type="button" class="btn primary" id="e-cancel">Fatto</button></div></div></div>`;
+}
 syncStyle();
 /* il calendario si apre sempre sul giorno di oggi */
 function calToday(){S.sel=todayIso();S.month=S.sel.slice(0,7)}
@@ -412,7 +518,7 @@ function vOggi(){
   const late=act.filter(c=>c.date<t).sort(byTime);
   const today=S.cards.filter(c=>c.date===t).sort(byTime);
   const nextMap=entries(addDays(t,1),addDays(t,7));
-  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><button class="btn ghost" data-style-tog type="button">${styleLabel()}</button></div>`;
+  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><button class="btn palette-btn" data-style-tog type="button" aria-label="Temi" title="Temi">${I.palette}</button></div>`;
   if(IS_APP&&'Notification' in window&&Notification.permission!=='granted')h+=`<div class="empty" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-style:solid"><span style="flex:1;min-width:200px">${Notification.permission==='denied'?'Le notifiche sono bloccate. Riattivale dalle impostazioni del telefono: App › MyTask › Notifiche.':'Attiva le notifiche per ricevere i promemoria.'}</span>${Notification.permission==='default'?'<button class="btn primary" type="button" id="askNotif">Attiva notifiche</button>':''}</div>`;
   if(late.length)h+=`<h2 class="late">In ritardo <span class="n">${late.length}</span></h2><div class="rows">${late.map(c=>row(c,true)).join('')}</div>`;
   h+=`<h2>Programma di oggi <span class="n">${today.length}</span></h2>`+(today.length?`<div class="rows">${today.map(c=>row(c)).join('')}</div>`:`<div class="empty">Niente in programma oggi. Usa il pulsante + per aggiungere qualcosa.</div>`);
@@ -559,6 +665,7 @@ function closeEditor(){draft=null;document.getElementById('modal').innerHTML=''}
 document.getElementById('modal').addEventListener('click',e=>{
   const t=e.target;
   if(t.id==='scrim'||t.id==='e-cancel')return closeEditor();
+  const tp=t.closest('[data-theme-pick]');if(tp){const v=tp.dataset.themePick;setTheme(v==='classic'?null:v);openThemes();return render()}
   if(t.dataset.pick){readForm();const s=t.dataset.pick;draft.dates=draft.dates.includes(s)?draft.dates.filter(x=>x!==s):[...draft.dates,s].sort();drawEditor();return}
   if(t.dataset.pm){readForm();const[y,m]=draft._pm.split('-').map(Number);draft._pm=iso(new Date(y,m-1+Number(t.dataset.pm),1)).slice(0,7);drawEditor();return}
   if(t.dataset.lab){readForm();const l=t.dataset.lab;draft.labels=draft.labels.includes(l)?draft.labels.filter(x=>x!==l):[...draft.labels,l];drawEditor()}
@@ -627,7 +734,7 @@ document.addEventListener('click',e=>{
   if(t.id==='fab'){const p={};if(S.view==='board'){const b=board(S.board);p.boardId=b.id;p.listId=b.lists[0].id}if(S.view==='calendario')p.date=S.sel;if(S.view==='oggi')p.date=todayIso();return openEditor(null,p)}
   if(t.id==='newBoard'){const n=S.boards.length;const cs=['--l-amber','--l-red','--l-blue','--l-green','--l-violet'];const id='b'+uid();S.boards.push({id,name:'Board '+(n+1),c:cs[n%cs.length],lists:[{id:uid(),name:'Da fare'},{id:uid(),name:'Fatto',done:true}]});S.board=id;save();return render()}
   if(t.id==='testNotif'){const c=S.cards.filter(c=>!c.done&&c.date).sort(byTime).find(c=>c.date>=todayIso())||S.cards[0];return notify(c)}
-  if(t.id==='styleTog'||t.hasAttribute('data-style-tog')){toggleStyle();return render()}
+  if(t.id==='styleTog'||t.hasAttribute('data-style-tog'))return openThemes();
   if(t.id==='reset'){S=sample();save();render();toast('Esempi ripristinati')}
 });
 document.addEventListener('submit',e=>{
