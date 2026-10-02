@@ -92,7 +92,8 @@ async function hmac(key, data) {
 }
 
 async function vapidHeader(env, endpoint) {
-  const jwk = JSON.parse(env.VAPID_PRIVATE_JWK);
+  // toglie un eventuale BOM o a capo finiti nel secret quando è stato caricato da terminale
+  const jwk = JSON.parse(env.VAPID_PRIVATE_JWK.replace(/^﻿/, '').trim());
   const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
   const head = b64u(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const claims = b64u(enc.encode(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: env.VAPID_SUBJECT })));
