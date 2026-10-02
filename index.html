@@ -229,6 +229,7 @@ const REC={none:'Non si ripete',daily:'Ogni giorno',d2:'Ogni 2 giorni',d3:'Ogni 
 const STEP={daily:1,d2:2,d3:3,d4:4,d5:5,d6:6,weekly:7};
 const KEY='agenda-proto-v1';
 const IS_APP=true;
+const ALLDAY_AT='09:00';
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const addDays=(s,n)=>{const d=new Date(s+'T12:00');d.setDate(d.getDate()+n);return iso(d)};
@@ -315,7 +316,7 @@ function meta(c,opt={}){
   if(opt.date&&c.date)h+=`<span class="${c.date<todayIso()&&!c.done?'time late':''}">${fmtShort(c.date)}${c.time?' · '+c.time:''}</span>`;
   c.labels.forEach(l=>h+=`<span class="chip lab" style="--c:var(${LABELS[l]})">${l}</span>`);
   if(c.checklist.length)h+=`<span class="ico">${I.list}${c.checklist.filter(i=>i.d).length}/${c.checklist.length}</span>`;
-  if(c.reminder!=null&&c.time)h+=`<span class="ico" title="Promemoria">${I.bell}</span>`;
+  if(c.reminder!=null&&c.date)h+=`<span class="ico" title="Promemoria">${I.bell}</span>`;
   if(c.recur!=='none')h+=`<span class="ico" title="${REC[c.recur]}">${I.rep}${c.recur==='dates'?(c.dates||[]).filter(x=>x>=(c.date||'')).length+' date':(REC[c.recur]||'').toLowerCase()}</span>`;
   return h?`<div class="meta">${h}</div>`:'';
 }
@@ -479,6 +480,7 @@ function readForm(){
   const g=id=>document.getElementById(id);
   draft.title=g('e-title').value.trim();draft.notes=g('e-notes').value;
   if(g('e-date'))draft.date=g('e-date').value||null;
+  const wh=g('e-time-h'),wm=g('e-time-m');if(wh&&wm)draft.time=pad(Math.round(wh.scrollTop/WHEEL_IT))+':'+pad(Math.round(wm.scrollTop/WHEEL_IT));
   const r=g('e-rem').value;draft.reminder=r===''?null:Number(r);draft.recur=g('e-rec').value;
   document.querySelectorAll('[data-clt]').forEach(x=>draft.checklist[x.dataset.clt].t=x.value);
 }
@@ -633,19 +635,23 @@ function notify(c){
     if(a==='snooze'){c.snooze=Date.now()+3600e3;save();toast('Ti ricordo di nuovo tra un\'ora')}
     if(a==='open')openEditor(c.id);
     d.remove()});
-  if(IS_APP&&swReg&&'Notification' in window&&Notification.permission==='granted'){
-    swReg.showNotification(c.title,{body:d.querySelector('.nb').textContent,tag:c.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:c.id},actions:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}).catch(()=>{});
+  const inApp=()=>{NOTIFS.appendChild(d);setTimeout(()=>d.remove(),20000)};
+  if(IS_APP&&'serviceWorker' in navigator&&'Notification' in window&&Notification.permission==='granted'){
+    // ready aspetta un service worker attivo: con la sola registrazione showNotification può fallire
+    navigator.serviceWorker.ready.then(r=>r.showNotification(c.title,{body:d.querySelector('.nb').textContent,tag:c.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:c.id},actions:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}))
+      .catch(err=>{console.warn('Notifica non mostrata',err);if(document.visibilityState==='visible')return;try{new Notification(c.title,{body:d.querySelector('.nb').textContent,icon:'icon-192.png'})}catch(e){}});
     if(document.visibilityState!=='visible')return;
   }
-  NOTIFS.appendChild(d);setTimeout(()=>d.remove(),20000);
+  inApp();
 }
 function checkReminders(){
   const now=Date.now();let ch=false;
   S.cards.forEach(c=>{
     if(c.done)return;
     if(c.snooze&&now>=c.snooze){c.snooze=null;notify(c);ch=true;return}
-    if(c.reminder==null||!c.date||!c.time||c.notified)return;
-    const at=new Date(c.date+'T'+c.time).getTime();const due=at-c.reminder*60000;
+    if(c.reminder==null||!c.date||c.notified)return;
+    // card "tutto il giorno": il promemoria si riferisce alle 9:00
+    const at=new Date(c.date+'T'+(c.time||ALLDAY_AT)).getTime();const due=at-c.reminder*60000;
     if(now>=due&&now<at+3600e3){c.notified=true;notify(c);ch=true}
   });
   if(ch)save();

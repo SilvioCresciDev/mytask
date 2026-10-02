@@ -12,7 +12,7 @@ MyTask è un'agenda personale che unisce un calendario e delle board in stile ka
 - **Inbox**: per annotare qualcosa al volo e smistarlo dopo in una board o dargli una data.
 - **Card**: titolo, data e ora, promemoria, etichette, checklist e note.
 - **Ripetizioni**: ogni giorno, ogni 2, 3, 4, 5 o 6 giorni, ogni settimana, ogni mese, oppure date sparse scelte toccando i giorni su un calendario. Quando completi una card che si ripete, passa da sola alla data successiva.
-- **Promemoria**: notifiche Android con i pulsanti "Fatto" e "Rimanda di 1 ora".
+- **Promemoria**: notifiche Android con i pulsanti "Fatto" e "Rimanda di 1 ora". Per le card "tutto il giorno" il promemoria fa riferimento alle 9:00.
 
 ## Privacy
 
