@@ -271,7 +271,7 @@ try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
 if(!S||!S.boards)S=sample();
 /* rimuove le colonne "In corso": le card tornano in "Da fare" */
 S.boards.forEach(b=>{const rm=b.lists.filter(l=>/^in corso$/i.test(l.name));if(!rm.length)return;b.lists=b.lists.filter(l=>!rm.includes(l));const first=b.lists.find(l=>!l.done)||b.lists[0];S.cards.forEach(c=>{if(rm.some(l=>l.id===c.listId))c.listId=first.id})});
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
 const board=id=>S.boards.find(b=>b.id===id);
 const card=id=>S.cards.find(c=>c.id===id);
 const doneList=b=>b&&b.lists.find(l=>l.done);
@@ -625,10 +625,13 @@ document.addEventListener('click',e=>{if(suppressClick){e.stopPropagation();e.pr
 /* ---------- notifiche (anteprima) ---------- */
 const NOTIFS=document.getElementById('notifs');
 function toast(msg){const d=document.createElement('div');d.className='notif';d.style.borderRadius='12px';d.innerHTML=`<div class="nb" style="color:var(--fg)">${esc(msg)}</div>`;NOTIFS.appendChild(d);setTimeout(()=>d.remove(),2600)}
+function whenText(c,day){
+  const w=day?(day===todayIso()?'Oggi':fmtShort(day))+(c.time?' alle '+c.time:''):'Senza data';
+  return w+(board(c.boardId)?' · '+board(c.boardId).name:'');
+}
 function notify(c){
   if(!c)return;const d=document.createElement('div');d.className='notif';
-  const when=c.date?(c.date===todayIso()?'Oggi':fmtShort(c.date))+(c.time?' alle '+c.time:''):'Senza data';
-  d.innerHTML=`<div class="nh"><b>${I.bell}</b>MyTask · adesso</div><div class="nt">${esc(c.title)}</div><div class="nb">${when}${board(c.boardId)?' · '+esc(board(c.boardId).name):''}</div>
+  d.innerHTML=`<div class="nh"><b>${I.bell}</b>MyTask · adesso</div><div class="nt">${esc(c.title)}</div><div class="nb">${esc(whenText(c,c.date))}</div>
    <div class="na"><button type="button" data-n="done">Fatto</button><button type="button" data-n="snooze">Rimanda di 1 ora</button><button type="button" data-n="open">Apri</button></div>`;
   d.addEventListener('click',e=>{const a=e.target.dataset.n;if(!a)return;
     if(a==='done'&&!c.done)toggleDone(c);
@@ -636,7 +639,8 @@ function notify(c){
     if(a==='open')openEditor(c.id);
     d.remove()});
   const inApp=()=>{NOTIFS.appendChild(d);setTimeout(()=>d.remove(),20000)};
-  if(IS_APP&&'serviceWorker' in navigator&&'Notification' in window&&Notification.permission==='granted'){
+  // con il push attivo la notifica di sistema la manda il server: qui solo quella dentro l'app
+  if(IS_APP&&!pushOn&&'serviceWorker' in navigator&&'Notification' in window&&Notification.permission==='granted'){
     // ready aspetta un service worker attivo: con la sola registrazione showNotification può fallire
     navigator.serviceWorker.ready.then(r=>r.showNotification(c.title,{body:d.querySelector('.nb').textContent,tag:c.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:c.id},actions:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}))
       .catch(err=>{console.warn('Notifica non mostrata',err);if(document.visibilityState==='visible')return;try{new Notification(c.title,{body:d.querySelector('.nb').textContent,icon:'icon-192.png'})}catch(e){}});
@@ -664,7 +668,47 @@ if(IS_APP&&'serviceWorker' in navigator){
   const q=new URLSearchParams(location.search);if(q.get('a')){setTimeout(()=>handleAction(q.get('a'),q.get('id')),300);history.replaceState(null,'',location.pathname)}
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkReminders()});
 }
-document.addEventListener('click',e=>{if(e.target.id==='askNotif')Notification.requestPermission().then(()=>render())});
+/* ---------- push dal server: promemoria puntuali anche ad app chiusa ---------- */
+const PUSH_URL='';// indirizzo del Worker Cloudflare (vuoto = push disattivato)
+const PUSH_KEY='BD0-rc6SqlVCzJofoCmBhLqdqDyt2BZ6Y3lKDxBt2C1JQ5Qvcmz1HCwNKU6LLMLMJp0w-KycqqtBB9Lu4yrNXhk';
+var pushSub=null,pushOn=false,pushTO=null;
+function deviceId(){
+  let d=null;try{d=localStorage.getItem('mytask-device')}catch(e){}
+  if(!d){d=crypto.randomUUID();try{localStorage.setItem('mytask-device',d)}catch(e){}}
+  return d;
+}
+/* i promemoria dei prossimi 60 giorni, comprese le ripetizioni, già convertiti in istanti */
+function pushReminders(){
+  const now=Date.now(),t=todayIso(),out=[];
+  S.cards.forEach(c=>{
+    if(c.done)return;
+    if(c.snooze&&c.snooze>now)out.push({id:c.id,at:c.snooze,title:c.title,body:whenText(c,c.date)});
+    if(c.reminder==null)return;
+    occ(c,t,addDays(t,60)).forEach(day=>{
+      if(day===c.date&&c.notified)return;
+      const at=new Date(day+'T'+(c.time||ALLDAY_AT)).getTime()-c.reminder*60000;
+      if(at>now-3600e3)out.push({id:c.id,at,title:c.title,body:whenText(c,day)});
+    });
+  });
+  return out.sort((a,b)=>a.at-b.at).slice(0,300);
+}
+function schedulePush(){if(!pushSub)return;clearTimeout(pushTO);pushTO=setTimeout(syncPush,1500)}
+async function syncPush(){
+  try{const r=await fetch(PUSH_URL+'/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:deviceId(),sub:pushSub.toJSON(),reminders:pushReminders()})});pushOn=r.ok}
+  catch(e){pushOn=false;console.warn('Sync push non riuscita',e)}
+}
+async function setupPush(){
+  if(!IS_APP||!PUSH_URL||!('serviceWorker' in navigator)||!('PushManager' in window)||Notification.permission!=='granted')return;
+  try{
+    const r=await navigator.serviceWorker.ready;
+    const key=Uint8Array.from(atob(PUSH_KEY.replace(/-/g,'+').replace(/_/g,'/')),x=>x.charCodeAt(0));
+    pushSub=await r.pushManager.getSubscription()||await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:key});
+    await syncPush();
+  }catch(e){console.warn('Push non disponibile',e)}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&pushSub)syncPush()});
+setupPush();
+document.addEventListener('click',e=>{if(e.target.id==='askNotif')Notification.requestPermission().then(()=>{render();setupPush()})});
 if(IS_APP){const r=document.getElementById('reset');if(r)r.hidden=true}
 render();setInterval(checkReminders,15000);setTimeout(checkReminders,1500);
 </script>

@@ -1,0 +1,16 @@
+name = "mytask-push"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+VAPID_PUBLIC_KEY = "BD0-rc6SqlVCzJofoCmBhLqdqDyt2BZ6Y3lKDxBt2C1JQ5Qvcmz1HCwNKU6LLMLMJp0w-KycqqtBB9Lu4yrNXhk"
+VAPID_SUBJECT = "https://silviocrescidev.github.io/mytask/"
+# VAPID_PRIVATE_JWK è un secret: npx wrangler secret put VAPID_PRIVATE_JWK
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mytask-push"
+database_id = "DA_COMPILARE_DOPO_wrangler_d1_create"
