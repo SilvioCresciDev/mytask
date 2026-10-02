@@ -8,7 +8,7 @@ MyTask è un'agenda personale che unisce un calendario e delle board in stile ka
 
 - **Oggi**: le cose di oggi in ordine di orario, quelle in ritardo in cima e un'anteprima dei prossimi 7 giorni.
 - **Calendario**: vista mensile con tutte le card datate, comprese le ripetizioni future.
-- **Board**: colonne "Da fare" e "Fatto" (puoi aggiungerne altre) in cui spostare le card trascinandole. Dal telefono tieni premuta la card, poi spostala. Avvicinandoti al bordo, le colonne scorrono da sole.
+- **Board**: colonne "Da fare" e "Fatto" (puoi aggiungerne altre) in cui spostare le card trascinandole. Dal telefono tieni premuta la card, poi spostala. Avvicinandoti al bordo, le colonne scorrono da sole. Le card in "Fatto" si eliminano da sole dopo 30 giorni; con "Svuota" in cima alla colonna le elimini subito tutte.
 - **Inbox**: per annotare qualcosa al volo e smistarlo dopo in una board o dargli una data.
 - **Card**: titolo, data e ora, promemoria, etichette, checklist e note.
 - **Ripetizioni**: ogni giorno, ogni 2, 3, 4, 5 o 6 giorni, ogni settimana, ogni mese, oppure date sparse scelte toccando i giorni su un calendario. Quando completi una card che si ripete, passa da sola alla data successiva.

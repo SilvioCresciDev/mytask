@@ -118,7 +118,8 @@ h2.late{color:var(--late)}
 .col{flex:0 0 280px;background:var(--surface-2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;max-width:84vw}
 .col.over{outline:2px dashed var(--accent);outline-offset:-2px}
 .colh{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;font-weight:700}
-.colh span{font:500 12px var(--f-mono);color:var(--muted)}
+.colh .colt span{font:500 12px var(--f-mono);color:var(--muted)}
+.colh .clear-done{padding:2px 8px;font-size:12px;min-height:0}
 .card{background:var(--surface);border-radius:8px;padding:10px 12px;box-shadow:var(--shadow);cursor:grab;border-left:4px solid transparent}
 .card.done .title{text-decoration:line-through;color:var(--muted);font-weight:400}
 .card.dragging{opacity:.4}
@@ -271,7 +272,14 @@ try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
 if(!S||!S.boards)S=sample();
 /* rimuove le colonne "In corso": le card tornano in "Da fare" */
 S.boards.forEach(b=>{const rm=b.lists.filter(l=>/^in corso$/i.test(l.name));if(!rm.length)return;b.lists=b.lists.filter(l=>!rm.includes(l));const first=b.lists.find(l=>!l.done)||b.lists[0];S.cards.forEach(c=>{if(rm.some(l=>l.id===c.listId))c.listId=first.id})});
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
+/* segna quando una card è stata completata: serve alla pulizia automatica della colonna "Fatto" */
+function stampDone(){const now=Date.now();S.cards.forEach(c=>{if(c.done&&!c.doneAt)c.doneAt=now;else if(!c.done&&c.doneAt)delete c.doneAt})}
+const DONE_KEEP_DAYS=30;
+function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,n=S.cards.length;S.cards=S.cards.filter(c=>!(c.done&&c.doneAt&&c.doneAt<lim));return n-S.cards.length}
+function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
+let clearArm=null;// id della colonna "Fatto" in attesa di conferma per lo svuotamento
+stampDone();purgeDone();save();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&purgeDone()){save();render()}});
 const board=id=>S.boards.find(b=>b.id===id);
 const card=id=>S.cards.find(c=>c.id===id);
 const doneList=b=>b&&b.lists.find(l=>l.done);
@@ -379,7 +387,8 @@ function vBoard(){
   const tabs=S.boards.map(x=>`<button type="button" class="tab" data-board="${x.id}" aria-pressed="${x.id===b.id}" style="--c:var(${x.c})"><i></i>${esc(x.name)}</button>`).join('')+`<button type="button" class="tab" id="newBoard">+ Nuova board</button>`;
   const cols=b.lists.map(l=>{
     const cs=S.cards.filter(c=>c.listId===l.id);
-    return `<section class="col" data-drop-list="${l.id}"><div class="colh">${esc(l.name)} <span>${cs.length}</span></div>
+    const clear=l.done&&cs.length?`<button type="button" class="btn ghost danger clear-done" data-clear="${l.id}">${clearArm===l.id?'Conferma ('+cs.length+')':'Svuota'}</button>`:'';
+    return `<section class="col" data-drop-list="${l.id}"><div class="colh"><span class="colt">${esc(l.name)} <span>${cs.length}</span></span>${clear}</div>
      ${cs.map(c=>`<article class="card ${c.done?'done':''}" draggable="true" data-drag="${c.id}" data-open="${c.id}" style="border-left-color:${c.labels[0]?`var(${LABELS[c.labels[0]]})`:'transparent'}"><div class="title">${esc(c.title)}</div>${meta(c,{board:false,date:true})}</article>`).join('')}
      <form class="add" data-add-list="${l.id}"><input id="add-${l.id}" placeholder="Aggiungi una card" aria-label="Nuova card in ${esc(l.name)}"><button class="btn" type="submit">+</button></form></section>`;
   }).join('');
@@ -534,8 +543,13 @@ document.getElementById('modal').addEventListener('submit',e=>{
 
 /* ---------- interazioni ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],#newBoard,#fab,#testNotif,#reset');
+  const t=e.target.closest('[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset');
+  if(clearArm&&!(t&&t.dataset.clear)){clearArm=null;render()}
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
+  if(t.dataset.clear){const id=t.dataset.clear;
+    if(clearArm!==id){clearArm=id;return render()}
+    const n=S.cards.length;S.cards=S.cards.filter(c=>c.listId!==id);clearArm=null;save();render();
+    return toast((n-S.cards.length===1?'Eliminata 1 card':'Eliminate '+(n-S.cards.length)+' card'))}
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
   if(t.dataset.view){S.view=t.dataset.view;save();render();document.getElementById('main').scrollTop=0;return}
   if(t.dataset.open)return openEditor(t.dataset.open);
