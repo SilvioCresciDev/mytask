@@ -275,7 +275,9 @@ S.boards.forEach(b=>{const rm=b.lists.filter(l=>/^in corso$/i.test(l.name));if(!
 /* segna quando una card è stata completata: serve alla pulizia automatica della colonna "Fatto" */
 function stampDone(){const now=Date.now();S.cards.forEach(c=>{if(c.done&&!c.doneAt)c.doneAt=now;else if(!c.done&&c.doneAt)delete c.doneAt})}
 const DONE_KEEP_DAYS=30;
-function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,n=S.cards.length;S.cards=S.cards.filter(c=>!(c.done&&c.doneAt&&c.doneAt<lim));return n-S.cards.length}
+/* toglie le card dalla board: quelle con una data restano nel calendario come storico, le altre vengono eliminate */
+function clearCards(test){let del=0,arc=0;S.cards=S.cards.filter(c=>{if(c.archived||!test(c))return true;if(c.date){c.archived=true;c.listId=null;arc++;return true}del++;return false});return {del,arc}}
+function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,r=clearCards(c=>c.done&&c.doneAt&&c.doneAt<lim);return r.del+r.arc}
 function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
 let clearArm=null;// id della colonna "Fatto" in attesa di conferma per lo svuotamento
 stampDone();purgeDone();save();
@@ -313,6 +315,7 @@ function toggleDone(c){
     }
   }
   c.done=!c.done;
+  if(!c.done&&c.archived){delete c.archived;const ab=board(c.boardId);if(ab&&!c.listId)c.listId=ab.lists[0].id}
   const b=board(c.boardId);
   if(b){const dl=doneList(b);if(c.done&&dl)c.listId=dl.id;else if(!c.done&&c.listId===dl?.id)c.listId=b.lists[0].id}
   save();render();
@@ -420,11 +423,11 @@ function openEditor(id,preset={}){
 function drawEditor(){
   const d=draft,b=board(d.boardId);
   document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="edit" role="dialog" aria-label="Modifica card">
-   <h3>${d.id?'Modifica card':'Nuova card'}</h3>
+   <h3>${d.id?'Modifica card':'Nuova card'}</h3>${d.archived?'<p class="note">Tolta dalla board, resta nel calendario come storico. Scegli una colonna per rimetterla nella board.</p>':''}
    <div class="f"><label for="e-title">Titolo</label><input id="e-title" value="${esc(d.title)}" required placeholder="Es. Chiamare il commercialista"></div>
    <div class="grid2">
     <div class="f"><label for="e-board">Board</label><select id="e-board"><option value="">Inbox</option>${S.boards.map(x=>`<option value="${x.id}" ${x.id===d.boardId?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
-    <div class="f"><label for="e-list">Colonna</label><select id="e-list" ${b?'':'disabled'}>${b?b.lists.map(l=>`<option value="${l.id}" ${l.id===d.listId?'selected':''}>${esc(l.name)}</option>`).join(''):'<option>—</option>'}</select></div>
+    <div class="f"><label for="e-list">Colonna</label><select id="e-list" ${b?'':'disabled'}>${b&&d.archived?`<option value="" ${d.listId?'':'selected'}>Solo calendario</option>`:''}${b?b.lists.map(l=>`<option value="${l.id}" ${l.id===d.listId?'selected':''}>${esc(l.name)}</option>`).join(''):'<option>—</option>'}</select></div>
     ${d.recur==='dates'?`<div class="f"><span class="flab">Data</span><span class="note" style="padding:9px 0">Scegli i giorni qui sotto</span></div>`:`<div class="f"><label for="e-date">Data</label><input type="date" id="e-date" value="${d.date||''}"></div>`}
    </div>
    ${timeWheel(d)}
@@ -523,7 +526,7 @@ document.getElementById('modal').addEventListener('scroll',e=>{
 },true);
 document.getElementById('modal').addEventListener('change',e=>{
   if(e.target.id==='e-board'){readForm();draft.boardId=e.target.value||null;const b=board(draft.boardId);draft.listId=b?b.lists[0].id:null;drawEditor()}
-  if(e.target.id==='e-list'){draft.listId=e.target.value}
+  if(e.target.id==='e-list'){draft.listId=e.target.value||null}
   if(e.target.id==='e-rec'){readForm();if(draft.recur==='dates'&&!(draft.dates||[]).length)draft.dates=draft.date?[draft.date]:[];drawEditor()}
 });
 document.getElementById('modal').addEventListener('keydown',e=>{
@@ -532,7 +535,10 @@ document.getElementById('modal').addEventListener('keydown',e=>{
 });
 document.getElementById('modal').addEventListener('submit',e=>{
   e.preventDefault();readForm();if(!draft.title)return document.getElementById('e-title').focus();
-  const b=board(draft.boardId);if(b)draft.done=b.lists.find(l=>l.id===draft.listId)?.done||(draft.done&&!b.lists.some(l=>l.done));
+  const b=board(draft.boardId);
+  // card archiviata: resta completata fuori dalla board, a meno che non le venga scelta una colonna
+  if(draft.archived&&!draft.listId)draft.done=true;
+  else{delete draft.archived;if(b)draft.done=b.lists.find(l=>l.id===draft.listId)?.done||(draft.done&&!b.lists.some(l=>l.done))}
   if(draft.recur==='dates'){const t=todayIso();draft.dates=[...new Set(draft.dates||[])].sort();
     if(!draft.dates.length){draft.recur='none'}else draft.date=draft.dates.find(x=>x>=t)||draft.dates[draft.dates.length-1]}
   const clean={...draft};delete clean._confirm;delete clean._focused;delete clean._pm;
@@ -548,8 +554,10 @@ document.addEventListener('click',e=>{
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
   if(t.dataset.clear){const id=t.dataset.clear;
     if(clearArm!==id){clearArm=id;return render()}
-    const n=S.cards.length;S.cards=S.cards.filter(c=>c.listId!==id);clearArm=null;save();render();
-    return toast((n-S.cards.length===1?'Eliminata 1 card':'Eliminate '+(n-S.cards.length)+' card'))}
+    const r=clearCards(c=>c.listId===id);clearArm=null;save();render();
+    const msg=[];if(r.del)msg.push(r.del===1?'1 card eliminata':r.del+' card eliminate');
+    if(r.arc)msg.push(r.arc===1?'1 card con data resta nel calendario':r.arc+' card con data restano nel calendario');
+    return toast(msg.join(', '))}
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
   if(t.dataset.view){S.view=t.dataset.view;save();render();document.getElementById('main').scrollTop=0;return}
   if(t.dataset.open)return openEditor(t.dataset.open);
