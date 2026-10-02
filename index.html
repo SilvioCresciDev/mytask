@@ -279,6 +279,9 @@ const DONE_KEEP_DAYS=30;
 function clearCards(test){let del=0,arc=0;S.cards=S.cards.filter(c=>{if(c.archived||!test(c))return true;if(c.date){c.archived=true;c.listId=null;arc++;return true}del++;return false});return {del,arc}}
 function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,r=clearCards(c=>c.done&&c.doneAt&&c.doneAt<lim);return r.del+r.arc}
 function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
+/* il calendario si apre sempre sul giorno di oggi */
+function calToday(){S.sel=todayIso();S.month=S.sel.slice(0,7)}
+calToday();
 let clearArm=null;// id della colonna "Fatto" in attesa di conferma per lo svuotamento
 stampDone();purgeDone();save();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&purgeDone()){save();render()}});
@@ -559,7 +562,7 @@ document.addEventListener('click',e=>{
     if(r.arc)msg.push(r.arc===1?'1 card con data resta nel calendario':r.arc+' card con data restano nel calendario');
     return toast(msg.join(', '))}
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
-  if(t.dataset.view){S.view=t.dataset.view;save();render();document.getElementById('main').scrollTop=0;return}
+  if(t.dataset.view){S.view=t.dataset.view;if(S.view==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;return}
   if(t.dataset.open)return openEditor(t.dataset.open);
   if(t.dataset.board){S.board=t.dataset.board;save();return render()}
   if(t.dataset.mon!==undefined){const n=+t.dataset.mon;if(!n){S.month=todayIso().slice(0,7);S.sel=todayIso()}else{const[y,m]=S.month.split('-').map(Number);const d=new Date(y,m-1+n,1);S.month=iso(d).slice(0,7)}save();return render()}
