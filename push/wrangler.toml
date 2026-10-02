@@ -16,3 +16,6 @@ VAPID_SUBJECT = "https://silviocrescidev.github.io/mytask/"
 binding = "DB"
 database_name = "mytask-push"
 database_id = "cf95968f-8ba3-4414-a623-9f733b2ad4b1"
+
+[observability]
+enabled = true

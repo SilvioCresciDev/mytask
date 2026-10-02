@@ -692,9 +692,12 @@ function pushReminders(){
   });
   return out.sort((a,b)=>a.at-b.at).slice(0,300);
 }
-function schedulePush(){if(!pushSub)return;clearTimeout(pushTO);pushTO=setTimeout(syncPush,1500)}
-async function syncPush(){
-  try{const r=await fetch(PUSH_URL+'/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:deviceId(),sub:pushSub.toJSON(),reminders:pushReminders()})});pushOn=r.ok}
+function schedulePush(){if(!pushSub)return;clearTimeout(pushTO);pushTO=setTimeout(syncPush,800)}
+async function syncPush(keepalive){
+  clearTimeout(pushTO);pushTO=null;
+  // keepalive: la richiesta parte anche se l'app viene chiusa subito dopo il salvataggio.
+  // text/plain evita la richiesta preliminare CORS, che con keepalive non sempre è permessa
+  try{const r=await fetch(PUSH_URL+'/sync',{method:'POST',keepalive:!!keepalive,headers:{'Content-Type':'text/plain'},body:JSON.stringify({device:deviceId(),sub:pushSub.toJSON(),reminders:pushReminders()})});pushOn=r.ok}
   catch(e){pushOn=false;console.warn('Sync push non riuscita',e)}
 }
 async function setupPush(){
@@ -706,7 +709,8 @@ async function setupPush(){
     await syncPush();
   }catch(e){console.warn('Push non disponibile',e)}
 }
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&pushSub)syncPush()});
+document.addEventListener('visibilitychange',()=>{if(!pushSub)return;if(document.visibilityState==='visible')syncPush();else if(pushTO)syncPush(true)});
+addEventListener('pagehide',()=>{if(pushSub&&pushTO)syncPush(true)});
 setupPush();
 document.addEventListener('click',e=>{if(e.target.id==='askNotif')Notification.requestPermission().then(()=>{render();setupPush()})});
 if(IS_APP){const r=document.getElementById('reset');if(r)r.hidden=true}

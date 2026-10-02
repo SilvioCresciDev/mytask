@@ -61,11 +61,12 @@ async function sendDue(env) {
     const sent = new Set(JSON.parse(dev.sent || '[]'));
     const due = rem.filter(r => r.at <= now && r.at > now - LATE_LIMIT && !sent.has(key(r)));
     if (!due.length) continue;
+    console.log('sending', due.length, 'reminders to', dev.device);
     let gone = false;
     for (const r of due) {
       const status = await sendPush(env, dev, { id: r.id, title: r.title, body: r.body });
       if (status === 404 || status === 410) { gone = true; break }
-      if (status >= 200 && status < 300) sent.add(key(r));
+      if (status >= 200 && status < 300) { sent.add(key(r)); console.log('sent', r.id, status) }
       else console.warn('push failed', status, dev.device);
     }
     if (gone) {
