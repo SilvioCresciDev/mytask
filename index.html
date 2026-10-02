@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1b2440">
 <meta name="description" content="Agenda personale con board e promemoria">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://mytask-push.scresci-dev.workers.dev; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>MyTask</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -669,7 +669,7 @@ if(IS_APP&&'serviceWorker' in navigator){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkReminders()});
 }
 /* ---------- push dal server: promemoria puntuali anche ad app chiusa ---------- */
-const PUSH_URL='';// indirizzo del Worker Cloudflare (vuoto = push disattivato)
+const PUSH_URL='https://mytask-push.scresci-dev.workers.dev';// indirizzo del Worker Cloudflare (vuoto = push disattivato)
 const PUSH_KEY='BD0-rc6SqlVCzJofoCmBhLqdqDyt2BZ6Y3lKDxBt2C1JQ5Qvcmz1HCwNKU6LLMLMJp0w-KycqqtBB9Lu4yrNXhk';
 var pushSub=null,pushOn=false,pushTO=null;
 function deviceId(){

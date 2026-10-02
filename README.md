@@ -16,9 +16,11 @@ MyTask è un'agenda personale che unisce un calendario e delle board in stile ka
 
 ## Privacy
 
-I dati (card, board, promemoria) sono salvati **solo sul tuo dispositivo**. Ognuno parte da un'app vuota: né lo sviluppatore né altri utenti possono vedere quello che inserisci, e niente viene inviato a server esterni.
+Card, board e note sono salvate **solo sul tuo dispositivo**. Ognuno parte da un'app vuota e altri utenti non possono vedere quello che inserisci.
 
-L'app può caricare solo i propri file e i caratteri da Google Fonts. Una regola di sicurezza (Content Security Policy) blocca qualsiasi altra connessione.
+Per far arrivare i promemoria anche ad app chiusa, quando attivi le notifiche l'app invia a un piccolo server (un Worker Cloudflare dello sviluppatore) solo i promemoria dei prossimi 60 giorni: titolo della card, data e ora. Il server li usa solo per mandarti la notifica all'ora giusta. Le notifiche viaggiano cifrate fino al telefono.
+
+L'app può collegarsi solo ai propri file, ai caratteri di Google Fonts e al server dei promemoria. Una regola di sicurezza (Content Security Policy) blocca qualsiasi altra connessione.
 
 ## Installazione
 
@@ -53,14 +55,13 @@ Gli aggiornamenti arrivano da soli: quando esce una nuova versione, basta chiude
 
 ## Limiti attuali
 
-- **Promemoria**: li controlla l'app stessa. Arrivano puntuali se l'hai aperta di recente, ma se Android la chiude del tutto possono arrivare in ritardo o alla riapertura.
+- **Promemoria**: arrivano dal server anche ad app chiusa, con un ritardo massimo di circa un minuto. Il server conosce i promemoria fino a 60 giorni avanti: se non apri l'app per più di due mesi, quelli successivi non arrivano finché non la riapri.
 - **Nessuna sincronizzazione**: ogni dispositivo ha i suoi dati, quindi telefono e computer non si vedono tra loro, e non c'è un backup.
 - **Nessuna sveglia vera**: un'app web non può far suonare una sveglia a telefono bloccato.
 
 ## Prossimi passi
 
 - Sincronizzazione e backup su un servizio gratuito, con accesso tramite email.
-- Notifiche push inviate da un server, puntuali anche ad app chiusa.
 - In futuro, una versione Android nativa con vere sveglie.
 
 ## File del progetto
@@ -72,3 +73,4 @@ Gli aggiornamenti arrivano da soli: quando esce una nuova versione, basta chiude
 | `manifest.webmanifest` | Nome, colori e icone per l'installazione |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` | Icone dell'app |
 | `badge-96.png` | Piccola icona nella barra delle notifiche |
+| `push/` | Server dei promemoria (Cloudflare Worker + database D1) che invia le notifiche push |
