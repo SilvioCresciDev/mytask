@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
 
+<script>try{if(localStorage.getItem('mytask-style')!=='classic')document.documentElement.dataset.style='minimal'}catch(e){document.documentElement.dataset.style='minimal'}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -193,6 +194,40 @@ h2.late{color:var(--late)}
   .cal .dow{padding:6px 2px;text-align:center;font-size:10px}
   .grid2{grid-template-columns:1fr}
 }
+/* Stile "minimal scuro": variante attivabile con data-style="minimal" su <html>; senza attributo resta lo stile classico */
+:root[data-style="minimal"]{
+  --bg:#0a0a0b; --surface:#111113; --surface-2:#18181b; --fg:#ececee; --muted:#85858c; --line:#232327;
+  --accent:#ececee; --accent-fg:#0a0a0b; --accent-soft:#1d1d21;
+  --late:#e8875a; --ok:#9fd8b0; --shadow:none;
+  --l-red:#e07a76; --l-blue:#8aa8e0; --l-green:#8cc9a2; --l-violet:#b6a0e0; --l-amber:#d9b06e;
+  --f-display:var(--f-body);
+  --r:8px; color-scheme:dark}
+[data-style="minimal"] .side{background:var(--bg)}
+[data-style="minimal"] .brand{font-weight:600;font-size:18px;letter-spacing:0}
+[data-style="minimal"] h1{font-weight:600;letter-spacing:-.025em}
+[data-style="minimal"] h2{font-weight:500;letter-spacing:.12em;font-size:11px}
+[data-style="minimal"] .rows{background:none;border-left:0;border-right:0;border-radius:0}
+[data-style="minimal"] .row,[data-style="minimal"] .irow{padding-inline:4px}
+[data-style="minimal"] .title{font-weight:500}
+[data-style="minimal"] .check{border-width:1.5px;border-radius:50%;background:none}
+[data-style="minimal"] .check:checked{background:var(--muted);border-color:var(--muted)}
+[data-style="minimal"] .check:checked::after{border-color:var(--bg)}
+[data-style="minimal"] .chip{background:none;border:1px solid var(--line)}
+[data-style="minimal"] .lab{border-color:color-mix(in srgb,var(--c) 40%,transparent)}
+[data-style="minimal"] .btn{background:none}
+[data-style="minimal"] .btn.primary{background:var(--accent)}
+[data-style="minimal"] .nav button[aria-current="page"]{font-weight:600}
+@media (min-width:861px){[data-style="minimal"] .ev{background:none;border-left-width:2px}}
+[data-style="minimal"] .col{background:none;border:1px solid var(--line)}
+[data-style="minimal"] .card{border:1px solid var(--line);border-left:2px solid transparent}
+[data-style="minimal"] .tab{background:none}
+[data-style="minimal"] .empty{background:none}
+[data-style="minimal"] .scrim{background:rgb(0 0 0 / .7)}
+[data-style="minimal"] .sheet,[data-style="minimal"] .notif{border:1px solid var(--line);box-shadow:none}
+[data-style="minimal"] .sheet h3{font-weight:600}
+[data-style="minimal"] .fab{border-radius:50%;box-shadow:none}
+[data-style="minimal"] .bottom{background:var(--bg)}
+[data-style="minimal"] .bottom button[aria-current="page"]{background:none}
 </style>
 
 </head>
@@ -203,6 +238,7 @@ h2.late{color:var(--late)}
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">
       <button class="btn" id="testNotif" type="button">Prova una notifica</button>
+      <button class="btn" id="styleTog" type="button"></button>
       <button class="btn ghost" id="reset" type="button">Ripristina esempi</button>
       <span>I dati restano salvati su questo dispositivo.</span>
     </div>
@@ -279,6 +315,11 @@ const DONE_KEEP_DAYS=30;
 function clearCards(test){let del=0,arc=0;S.cards=S.cards.filter(c=>{if(c.archived||!test(c))return true;if(c.date){c.archived=true;c.listId=null;arc++;return true}del++;return false});return {del,arc}}
 function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,r=clearCards(c=>c.done&&c.doneAt&&c.doneAt<lim);return r.del+r.arc}
 function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
+const isMinimal=()=>document.documentElement.dataset.style==='minimal';
+const styleLabel=()=>isMinimal()?'Stile classico':'Stile minimal';
+function syncStyle(){const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=isMinimal()?'#0a0a0b':'#1b2440';const b=document.getElementById('styleTog');if(b)b.textContent=styleLabel()}
+function toggleStyle(){const r=document.documentElement;if(isMinimal()){delete r.dataset.style;try{localStorage.setItem('mytask-style','classic')}catch(e){}}else{r.dataset.style='minimal';try{localStorage.setItem('mytask-style','minimal')}catch(e){}}syncStyle()}
+syncStyle();
 /* il calendario si apre sempre sul giorno di oggi */
 function calToday(){S.sel=todayIso();S.month=S.sel.slice(0,7)}
 calToday();
@@ -356,7 +397,7 @@ function vOggi(){
   const late=act.filter(c=>c.date<t).sort(byTime);
   const today=S.cards.filter(c=>c.date===t).sort(byTime);
   const nextMap=entries(addDays(t,1),addDays(t,7));
-  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div></div>`;
+  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><button class="btn ghost" data-style-tog type="button">${styleLabel()}</button></div>`;
   if(IS_APP&&'Notification' in window&&Notification.permission!=='granted')h+=`<div class="empty" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-style:solid"><span style="flex:1;min-width:200px">${Notification.permission==='denied'?'Le notifiche sono bloccate. Riattivale dalle impostazioni del telefono: App › MyTask › Notifiche.':'Attiva le notifiche per ricevere i promemoria.'}</span>${Notification.permission==='default'?'<button class="btn primary" type="button" id="askNotif">Attiva notifiche</button>':''}</div>`;
   if(late.length)h+=`<h2 class="late">In ritardo <span class="n">${late.length}</span></h2><div class="rows">${late.map(c=>row(c,true)).join('')}</div>`;
   h+=`<h2>Programma di oggi <span class="n">${today.length}</span></h2>`+(today.length?`<div class="rows">${today.map(c=>row(c)).join('')}</div>`:`<div class="empty">Niente in programma oggi. Usa il pulsante + per aggiungere qualcosa.</div>`);
@@ -552,7 +593,7 @@ document.getElementById('modal').addEventListener('submit',e=>{
 
 /* ---------- interazioni ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset');
+  const t=e.target.closest('[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset,#styleTog,[data-style-tog]');
   if(clearArm&&!(t&&t.dataset.clear)){clearArm=null;render()}
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
   if(t.dataset.clear){const id=t.dataset.clear;
@@ -571,6 +612,7 @@ document.addEventListener('click',e=>{
   if(t.id==='fab'){const p={};if(S.view==='board'){const b=board(S.board);p.boardId=b.id;p.listId=b.lists[0].id}if(S.view==='calendario')p.date=S.sel;if(S.view==='oggi')p.date=todayIso();return openEditor(null,p)}
   if(t.id==='newBoard'){const n=S.boards.length;const cs=['--l-amber','--l-red','--l-blue','--l-green','--l-violet'];const id='b'+uid();S.boards.push({id,name:'Board '+(n+1),c:cs[n%cs.length],lists:[{id:uid(),name:'Da fare'},{id:uid(),name:'Fatto',done:true}]});S.board=id;save();return render()}
   if(t.id==='testNotif'){const c=S.cards.filter(c=>!c.done&&c.date).sort(byTime).find(c=>c.date>=todayIso())||S.cards[0];return notify(c)}
+  if(t.id==='styleTog'||t.hasAttribute('data-style-tog')){toggleStyle();return render()}
   if(t.id==='reset'){S=sample();save();render();toast('Esempi ripristinati')}
 });
 document.addEventListener('submit',e=>{
