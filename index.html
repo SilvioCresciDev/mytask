@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
 
-<script>try{if(localStorage.getItem('mytask-style')!=='classic')document.documentElement.dataset.style='minimal'}catch(e){document.documentElement.dataset.style='minimal'}</script>
+<script>try{if(localStorage.getItem('mytask-style')!=='classic')document.documentElement.dataset.style='color'}catch(e){document.documentElement.dataset.style='color'}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -194,40 +194,55 @@ h2.late{color:var(--late)}
   .cal .dow{padding:6px 2px;text-align:center;font-size:10px}
   .grid2{grid-template-columns:1fr}
 }
-/* Stile "minimal scuro": variante attivabile con data-style="minimal" su <html>; senza attributo resta lo stile classico */
-:root[data-style="minimal"]{
-  --bg:#0a0a0b; --surface:#111113; --surface-2:#18181b; --fg:#ececee; --muted:#85858c; --line:#232327;
-  --accent:#ececee; --accent-fg:#0a0a0b; --accent-soft:#1d1d21;
-  --late:#e8875a; --ok:#9fd8b0; --shadow:none;
-  --l-red:#e07a76; --l-blue:#8aa8e0; --l-green:#8cc9a2; --l-violet:#b6a0e0; --l-amber:#d9b06e;
-  --f-display:var(--f-body);
-  --r:8px; color-scheme:dark}
-[data-style="minimal"] .side{background:var(--bg)}
-[data-style="minimal"] .brand{font-weight:600;font-size:18px;letter-spacing:0}
-[data-style="minimal"] h1{font-weight:600;letter-spacing:-.025em}
-[data-style="minimal"] h2{font-weight:500;letter-spacing:.12em;font-size:11px}
-[data-style="minimal"] .rows{background:none;border-left:0;border-right:0;border-radius:0}
-[data-style="minimal"] .row,[data-style="minimal"] .irow{padding-inline:4px}
-[data-style="minimal"] .title{font-weight:500}
-[data-style="minimal"] .check{border-width:1.5px;border-radius:50%;background:none}
-[data-style="minimal"] .check:checked{background:var(--muted);border-color:var(--muted)}
-[data-style="minimal"] .check:checked::after{border-color:var(--bg)}
-[data-style="minimal"] .chip{background:none;border:1px solid var(--line)}
-[data-style="minimal"] .lab{border-color:color-mix(in srgb,var(--c) 40%,transparent)}
-[data-style="minimal"] .btn{background:none}
-[data-style="minimal"] .btn.primary{background:var(--accent)}
-[data-style="minimal"] .nav button[aria-current="page"]{font-weight:600}
-@media (min-width:861px){[data-style="minimal"] .ev{background:none;border-left-width:2px}}
-[data-style="minimal"] .col{background:none;border:1px solid var(--line)}
-[data-style="minimal"] .card{border:1px solid var(--line);border-left:2px solid transparent}
-[data-style="minimal"] .tab{background:none}
-[data-style="minimal"] .empty{background:none}
-[data-style="minimal"] .scrim{background:rgb(0 0 0 / .7)}
-[data-style="minimal"] .sheet,[data-style="minimal"] .notif{border:1px solid var(--line);box-shadow:none}
-[data-style="minimal"] .sheet h3{font-weight:600}
-[data-style="minimal"] .fab{border-radius:50%;box-shadow:none}
-[data-style="minimal"] .bottom{background:var(--bg)}
-[data-style="minimal"] .bottom button[aria-current="page"]{background:none}
+/* Stile "colorato": variante attivabile con data-style="color" su <html>; senza attributo resta lo stile classico. Segue chiaro/scuro di sistema */
+:root[data-style="color"]{
+  --bg:#fff6ec; --surface:#ffffff; --surface-2:#ffecdc; --fg:#1d1433; --muted:#6b5f7f; --line:#f1dcc9;
+  --accent:#f0386b; --accent-2:#7b4dff; --accent-3:#ff9f1c; --accent-fg:#ffffff; --accent-soft:#ffe0ea;
+  --late:#e8590c; --ok:#0fb47e; --shadow:0 2px 0 rgb(29 20 51 / .06), 0 6px 18px rgb(240 56 107 / .10);
+  --l-red:#f03e3e; --l-blue:#1c7ed6; --l-green:#2f9e44; --l-violet:#ae3ec9; --l-amber:#f08c00;
+  --grad:linear-gradient(120deg,var(--accent),var(--accent-2));
+  --r:14px; color-scheme:light}
+@media (prefers-color-scheme: dark){:root[data-style="color"]:not([data-theme="light"]){
+  --bg:#160f29; --surface:#211838; --surface-2:#2c2150; --fg:#f7f1ff; --muted:#b3a6d1; --line:#3a2e62;
+  --accent:#ff5c8d; --accent-2:#9d7bff; --accent-3:#ffb347; --accent-fg:#ffffff; --accent-soft:#4a2450;
+  --late:#ff8c4a; --ok:#3ddc97; --shadow:0 6px 18px rgb(0 0 0 / .35);
+  --l-red:#ff6b6b; --l-blue:#4dabf7; --l-green:#51cf66; --l-violet:#da77f2; --l-amber:#ffc048; color-scheme:dark}}
+[data-style="color"] body{background:radial-gradient(900px 500px at 100% -10%,color-mix(in srgb,var(--accent-2) 16%,transparent),transparent 70%),radial-gradient(700px 400px at -10% 110%,color-mix(in srgb,var(--accent-3) 18%,transparent),transparent 70%),var(--bg);background-attachment:fixed}
+[data-style="color"] .side{background:color-mix(in srgb,var(--surface) 75%,transparent);backdrop-filter:blur(8px)}
+[data-style="color"] .brand,[data-style="color"] h1{background:linear-gradient(120deg,var(--accent),var(--accent-2) 60%,var(--accent-3));-webkit-background-clip:text;background-clip:text;color:transparent}
+[data-style="color"] .nav button:nth-child(1) svg{color:var(--accent-3)}
+[data-style="color"] .nav button:nth-child(2) svg{color:var(--l-blue)}
+[data-style="color"] .nav button:nth-child(3) svg{color:var(--accent-2)}
+[data-style="color"] .nav button:nth-child(4) svg{color:var(--l-green)}
+[data-style="color"] .nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+[data-style="color"] h2{color:var(--accent-2)}
+[data-style="color"] h2.late{color:var(--late)}
+[data-style="color"] .rows{box-shadow:var(--shadow);border-color:transparent}
+[data-style="color"] .check{border-color:var(--accent-2);border-radius:50%}
+[data-style="color"] .check:checked{background:var(--ok);border-color:var(--ok)}
+[data-style="color"] .chip.lab{background:color-mix(in srgb,var(--c) 20%,transparent);font-weight:700}
+[data-style="color"] .btn.primary,[data-style="color"] .fab{background:var(--grad);border-color:transparent}
+[data-style="color"] .fab{border-radius:50%;box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 45%,transparent)}
+[data-style="color"] .day.today .dn{background:var(--grad)}
+[data-style="color"] .day.sel{box-shadow:inset 0 0 0 2px var(--accent-2)}
+[data-style="color"] .cal{background:var(--line);box-shadow:var(--shadow)}
+[data-style="color"] .cal .dow{color:var(--accent-2)}
+[data-style="color"] .tab[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 18%,var(--surface));border-color:var(--c)}
+[data-style="color"] .col:nth-child(4n+1){background:color-mix(in srgb,var(--l-blue) 14%,var(--bg))}
+[data-style="color"] .col:nth-child(4n+2){background:color-mix(in srgb,var(--accent-3) 16%,var(--bg))}
+[data-style="color"] .col:nth-child(4n+3){background:color-mix(in srgb,var(--accent-2) 14%,var(--bg))}
+[data-style="color"] .col:nth-child(4n){background:color-mix(in srgb,var(--l-green) 14%,var(--bg))}
+[data-style="color"] .card{border-left-width:5px;border-radius:10px}
+[data-style="color"] .pill{background:var(--grad);color:var(--accent-fg)}
+[data-style="color"] .empty{border-color:color-mix(in srgb,var(--accent-2) 40%,transparent)}
+[data-style="color"] .sheet{border-top:5px solid var(--accent)}
+[data-style="color"] .nh b{background:var(--grad)}
+[data-style="color"] .bottom{background:color-mix(in srgb,var(--surface) 85%,transparent);backdrop-filter:blur(8px)}
+[data-style="color"] .bottom button:nth-child(1) svg{color:var(--accent-3)}
+[data-style="color"] .bottom button:nth-child(2) svg{color:var(--l-blue)}
+[data-style="color"] .bottom button:nth-child(3) svg{color:var(--accent-2)}
+[data-style="color"] .bottom button:nth-child(4) svg{color:var(--l-green)}
+[data-style="color"] .bottom button[aria-current="page"]{color:var(--accent)}
 </style>
 
 </head>
@@ -315,10 +330,10 @@ const DONE_KEEP_DAYS=30;
 function clearCards(test){let del=0,arc=0;S.cards=S.cards.filter(c=>{if(c.archived||!test(c))return true;if(c.date){c.archived=true;c.listId=null;arc++;return true}del++;return false});return {del,arc}}
 function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,r=clearCards(c=>c.done&&c.doneAt&&c.doneAt<lim);return r.del+r.arc}
 function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
-const isMinimal=()=>document.documentElement.dataset.style==='minimal';
-const styleLabel=()=>isMinimal()?'Stile classico':'Stile minimal';
-function syncStyle(){const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=isMinimal()?'#0a0a0b':'#1b2440';const b=document.getElementById('styleTog');if(b)b.textContent=styleLabel()}
-function toggleStyle(){const r=document.documentElement;if(isMinimal()){delete r.dataset.style;try{localStorage.setItem('mytask-style','classic')}catch(e){}}else{r.dataset.style='minimal';try{localStorage.setItem('mytask-style','minimal')}catch(e){}}syncStyle()}
+const isColor=()=>document.documentElement.dataset.style==='color';
+const styleLabel=()=>isColor()?'Stile classico':'Stile colorato';
+function syncStyle(){const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=isColor()?'#f0386b':'#1b2440';const b=document.getElementById('styleTog');if(b)b.textContent=styleLabel()}
+function toggleStyle(){const r=document.documentElement;if(isColor()){delete r.dataset.style;try{localStorage.setItem('mytask-style','classic')}catch(e){}}else{r.dataset.style='color';try{localStorage.setItem('mytask-style','color')}catch(e){}}syncStyle()}
 syncStyle();
 /* il calendario si apre sempre sul giorno di oggi */
 function calToday(){S.sel=todayIso();S.month=S.sel.slice(0,7)}
