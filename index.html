@@ -601,7 +601,7 @@ function openEditor(id,preset={}){
   draft=JSON.parse(JSON.stringify(c));drawEditor();
 }
 function drawEditor(){
-  const d=draft,b=board(d.boardId);
+  const d=draft,b=board(d.boardId),prev=document.querySelector('#edit.sheet'),top=prev?prev.scrollTop:0;
   document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="edit" role="dialog" aria-label="Modifica card">
    <h3>${d.id?'Modifica card':'Nuova card'}</h3>${d.archived?'<p class="note">Tolta dalla board, resta nel calendario come storico. Scegli una colonna per rimetterla nella board.</p>':''}
    <div class="f"><label for="e-title">Titolo</label><input id="e-title" value="${esc(d.title)}" required placeholder="Es. Chiamare il commercialista"></div>
@@ -624,6 +624,8 @@ function drawEditor(){
    <div class="actions"><div>${d.id?`<button type="button" class="btn ghost danger" id="e-del">${draft._confirm?'Conferma eliminazione':'Elimina'}</button>`:''}</div>
     <div style="display:flex;gap:8px"><button type="button" class="btn" id="e-cancel">Annulla</button><button type="submit" class="btn primary">Salva</button></div></div>
   </form></div>`;
+  // ridisegnare il form non deve riportarlo in cima (etichette, checklist, giorni...)
+  if(top)document.getElementById('edit').scrollTop=top;
   setTimeout(()=>{if(!draft._focused){document.getElementById('e-title')?.focus();draft._focused=true}initWheel()},0);
 }
 const WHEEL_IT=36;
@@ -772,6 +774,23 @@ function dropOn(target){
   dragId=null;save();render();return true;
 }
 document.addEventListener('drop',e=>{if(!dragId)return;e.preventDefault();dropOn(e.target)});
+
+/* swipe orizzontale: sul calendario cambia mese, altrove passa alla sezione accanto */
+let SW=null;
+function hScrollable(el){for(;el&&el!==document.body;el=el.parentElement){const o=getComputedStyle(el).overflowX;if((o==='auto'||o==='scroll')&&el.scrollWidth>el.clientWidth)return true}return false}
+document.addEventListener('touchstart',e=>{
+  SW=null;const t=e.target;
+  if(e.touches.length>1||document.getElementById('modal').children.length||t.closest('input,textarea,select,.card[data-drag]')||hScrollable(t))return;
+  const p=e.touches[0];SW={x:p.clientX,y:p.clientY,at:Date.now(),cal:!!t.closest('.cal')};
+},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(!SW)return;const s=SW;SW=null;const p=e.changedTouches[0],dx=p.clientX-s.x,dy=p.clientY-s.y;
+  if(Date.now()-s.at>700||Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
+  const step=dx<0?1:-1;
+  if(s.cal&&S.view==='calendario'){const[y,m]=S.month.split('-').map(Number);S.month=iso(new Date(y,m-1+step,1)).slice(0,7);save();return render()}
+  const i=VIEWS.findIndex(v=>v[0]===S.view),n=VIEWS[i+step];if(i<0||!n)return;
+  S.view=n[0];if(S.view==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;
+},{passive:true});
 
 /* trascinamento su telefono: tieni premuto ~0,4 s, poi sposta il dito */
 let T=null,suppressClick=false,touchUsed=false;
