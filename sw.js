@@ -1,5 +1,5 @@
 // MyTask service worker: funziona offline e gestisce i pulsanti delle notifiche
-const CACHE='mytask-v29',QUEUE='mytask-actions';
+const CACHE='mytask-v30',QUEUE='mytask-actions';
 const FILES=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.all(FILES.map(f=>fetch(f,{cache:'no-store'}).then(r=>c.put(f,r))))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE&&x!==QUEUE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
@@ -15,7 +15,7 @@ self.addEventListener('fetch',e=>{
 });
 self.addEventListener('push',e=>{
   let d={};try{d=e.data?e.data.json():{}}catch(err){}
-  e.waitUntil(self.registration.showNotification(d.title||'MyTask',{body:d.body||'',tag:d.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:d.id},actions:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}));
+  e.waitUntil(self.registration.showNotification(d.title||'MyTask',{body:d.body||'',tag:d.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:d.id},actions:String(d.id||'').startsWith('digest-')?[]:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}));
 });
 // Fatto/Rimanda finiscono in una coda salvata: se l'app è congelata il messaggio si perderebbe,
 // così l'app la svuota appena torna visibile
