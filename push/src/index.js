@@ -3,6 +3,7 @@
 
 const ALLOWED_ORIGINS = ['https://silviocrescidev.github.io', 'http://localhost:8000'];
 const MAX_BODY = 64 * 1024;
+const MAX_BACKUP = 1900 * 1024; // sotto il limite di 2 MB per riga di D1
 const MAX_REMINDERS = 300;
 const LATE_LIMIT = 3600e3; // un promemoria in ritardo di oltre un'ora non viene più inviato
 
@@ -40,6 +41,25 @@ export default {
          ON CONFLICT(device) DO UPDATE SET endpoint=excluded.endpoint,p256dh=excluded.p256dh,auth=excluded.auth,reminders=excluded.reminders,updated=excluded.updated`
       ).bind(d.device, s.endpoint, s.keys.p256dh, s.keys.auth, JSON.stringify(rem), Date.now()).run();
       return reply(200, { ok: true, count: rem.length });
+    }
+    // backup: il server conserva solo dati già cifrati dall'app; rev evita di sovrascrivere modifiche di un altro dispositivo
+    if (req.method === 'POST' && url.pathname === '/backup') {
+      if (!ALLOWED_ORIGINS.includes(origin)) return reply(403, { error: 'origin' });
+      const text = await req.text();
+      if (text.length > MAX_BACKUP) return reply(413, { error: 'too large' });
+      let d;
+      try { d = JSON.parse(text) } catch { return reply(400, { error: 'json' }) }
+      if (typeof d.id !== 'string' || !/^[0-9a-f]{64}$/.test(d.id)) return reply(400, { error: 'id' });
+      const row = await env.DB.prepare('SELECT rev,data FROM backups WHERE id=?').bind(d.id).first();
+      if (d.op === 'get') return reply(200, row ? { rev: row.rev, data: row.data } : { rev: 0, data: null });
+      if (d.op !== 'put' || typeof d.data !== 'string' || !Number.isInteger(d.rev)) return reply(400, { error: 'op' });
+      const cur = row ? row.rev : 0;
+      if (d.rev !== cur) return reply(409, { rev: cur, data: row ? row.data : null });
+      const res = row
+        ? await env.DB.prepare('UPDATE backups SET rev=?,data=?,updated=? WHERE id=? AND rev=?').bind(cur + 1, d.data, Date.now(), d.id, cur).run()
+        : await env.DB.prepare('INSERT OR IGNORE INTO backups(id,rev,data,updated) VALUES(?,1,?,?)').bind(d.id, d.data, Date.now()).run();
+      if (!res.meta.changes) return reply(409, { error: 'retry' });
+      return reply(200, { rev: cur + 1 });
     }
     if (url.pathname === '/') return reply(200, { ok: true, service: 'mytask-push' });
     return reply(404, { error: 'not found' });

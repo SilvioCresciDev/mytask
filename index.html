@@ -334,6 +334,14 @@ h2.late{color:var(--late)}
 /* Selettore temi */
 .palette-btn{width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%}
 .palette-btn svg{width:20px;height:20px}
+.headbtns{display:flex;gap:8px}
+[data-backup]{position:relative}
+[data-backup][data-sync]::after{content:'';position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;border:2px solid var(--surface)}
+[data-backup][data-sync="ok"]::after{background:var(--l-green)}
+[data-backup][data-sync="err"]::after{background:var(--l-red)}
+[data-backup][data-sync="off"]::after{display:none}
+.bkcode{font:700 20px/1.3 ui-monospace,Consolas,monospace;letter-spacing:.06em;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;text-align:center;user-select:all;word-break:break-all}
+.bkrow{display:flex;gap:8px;flex-wrap:wrap}
 .side-foot .palette-side{display:flex;align-items:center;gap:8px;justify-content:center}
 .side-foot .palette-side svg{width:16px;height:16px}
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
@@ -356,7 +364,7 @@ h2.late{color:var(--late)}
       <button class="btn" id="testNotif" type="button">Prova una notifica</button>
       <button class="btn palette-side" id="styleTog" type="button"></button>
       <button class="btn ghost" id="reset" type="button">Ripristina esempi</button>
-      <span>I dati restano salvati su questo dispositivo.</span>
+      <button class="btn palette-side" data-backup type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6 4.5 4.5 0 0 1 17.5 18.5H7z"/></svg>Backup</button>
     </div>
   </aside>
   <main id="main"></main>
@@ -374,6 +382,7 @@ const I={
  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>',
  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>',
  rep:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg>',
+ cloud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6 4.5 4.5 0 0 1 17.5 18.5H7z"/></svg>',
  palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.2" fill="currentColor"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
 };
@@ -431,7 +440,120 @@ const DONE_KEEP_DAYS=30;
 /* toglie le card dalla board: quelle con una data restano nel calendario come storico, le altre vengono eliminate */
 function clearCards(test){let del=0,arc=0;S.cards=S.cards.filter(c=>{if(c.archived||!test(c))return true;if(c.date){c.archived=true;c.listId=null;arc++;return true}del++;return false});return {del,arc}}
 function purgeDone(){const lim=Date.now()-DONE_KEEP_DAYS*864e5,r=clearCards(c=>c.done&&c.doneAt&&c.doneAt<lim);return r.del+r.arc}
-function save(){stampDone();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
+function save(){stampDone();stampSync();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush();queueSync()}
+/* ---------- backup sul server ----------
+   I dati partono cifrati con una chiave ricavata dal codice di backup: il server vede solo testo illeggibile.
+   Ogni card/board ha l'ora dell'ultima modifica (upd) e le eliminazioni lasciano una traccia (S.tomb),
+   così due dispositivi si uniscono card per card invece di sovrascriversi a vicenda. */
+var SYNC=null,syncSnap=null,syncTO=null,syncBusy=false,syncAgain=false;
+try{SYNC=JSON.parse(localStorage.getItem('mytask-sync'))}catch(e){}
+function syncKeep(){try{if(SYNC)localStorage.setItem('mytask-sync',JSON.stringify(SYNC));else localStorage.removeItem('mytask-sync')}catch(e){}}
+function bare(o){const {upd,...r}=o;return JSON.stringify(r)}
+function snapOf(){const m={};S.cards.forEach(c=>m['c'+c.id]=bare(c));S.boards.forEach(b=>m['b'+b.id]=bare(b));return m}
+function stampSync(){
+  const now=Date.now(),old=syncSnap;S.tomb=S.tomb||{};
+  if(old){
+    const seen=new Set(),chk=(p,x)=>{const k=p+x.id;seen.add(k);if(old[k]!==bare(x)){x.upd=now;delete S.tomb[k]}};
+    S.cards.forEach(c=>chk('c',c));S.boards.forEach(b=>chk('b',b));
+    for(const k in old)if(!seen.has(k))S.tomb[k]=now;
+  }
+  for(const k in S.tomb)if(S.tomb[k]<now-90*864e5)delete S.tomb[k];
+  syncSnap=snapOf();
+}
+function mergeDoc(L,R){
+  const tomb={...(R.tomb||{})};for(const k in L.tomb)tomb[k]=Math.max(tomb[k]||0,L.tomb[k]);
+  const pick=(p,la,ra)=>{
+    const lm=new Map(la.map(x=>[x.id,x])),rm=new Map(ra.map(x=>[x.id,x])),keep=x=>!(tomb[p+x.id]>=(x.upd||0)),out=[];
+    la.forEach(l=>{const r=rm.get(l.id),w=r&&(r.upd||0)>(l.upd||0)?r:l;if(keep(w))out.push(w)});
+    ra.forEach(r=>{if(!lm.has(r.id)&&keep(r))out.push(r)});
+    return out};
+  return {cards:pick('c',L.cards,R.cards||[]),boards:pick('b',L.boards,R.boards||[]),tomb};
+}
+function applyMerged(m){
+  const before=JSON.stringify([S.cards,S.boards]);S.tomb=m.tomb;
+  if(JSON.stringify([m.cards,m.boards])===before)return;
+  S.cards=m.cards;if(m.boards.length)S.boards=m.boards;if(!board(S.board))S.board=S.boards[0].id;
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  syncSnap=snapOf();schedulePush();render();
+}
+const SYNC_AL='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function newSyncCode(){return [...crypto.getRandomValues(new Uint8Array(20))].map(b=>SYNC_AL[b&31]).join('')}
+function normCode(v){const c=String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return c.length===20&&[...c].every(x=>SYNC_AL.includes(x))?c:null}
+const fmtCode=c=>c.match(/.{5}/g).join('-');
+async function syncKeys(code){
+  const h=async x=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(x)));
+  return {id:[...await h('mytask-id:'+code)].map(b=>b.toString(16).padStart(2,'0')).join(''),
+    key:await crypto.subtle.importKey('raw',await h('mytask-key:'+code),'AES-GCM',false,['encrypt','decrypt'])};
+}
+async function seal(k,obj){
+  const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},k.key,new TextEncoder().encode(JSON.stringify(obj))));
+  const all=new Uint8Array(12+ct.length);all.set(iv);all.set(ct,12);let b='';for(let i=0;i<all.length;i+=8192)b+=String.fromCharCode(...all.subarray(i,i+8192));return btoa(b);
+}
+async function unseal(k,str){const all=Uint8Array.from(atob(str),x=>x.charCodeAt(0));return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:all.slice(0,12)},k.key,all.slice(12))))}
+async function backupCall(body){
+  // text/plain evita la richiesta preliminare CORS
+  const r=await fetch(PUSH_URL+'/backup',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body)});
+  let j={};try{j=await r.json()}catch(e){}return {status:r.status,...j};
+}
+function queueSync(){if(!SYNC)return;clearTimeout(syncTO);syncTO=setTimeout(syncNow,2500)}
+async function syncNow(){
+  if(!SYNC||!PUSH_URL)return;if(syncBusy){syncAgain=true;return}
+  syncBusy=true;clearTimeout(syncTO);syncTO=null;
+  try{
+    const k=await syncKeys(SYNC.code);let r=await backupCall({op:'get',id:k.id}),ok=false;
+    for(let i=0;i<4&&!ok;i++){
+      if(r.status!==200||r.data===undefined)throw new Error('server '+r.status);
+      const remote=r.data?await unseal(k,r.data):null,local={cards:S.cards,boards:S.boards,tomb:S.tomb||{}};
+      const m=remote?mergeDoc(local,remote):local;
+      applyMerged(m);
+      if(remote&&JSON.stringify(m)===JSON.stringify({cards:remote.cards,boards:remote.boards,tomb:remote.tomb})){SYNC.rev=r.rev;ok=true;break}
+      const p=await backupCall({op:'put',id:k.id,rev:r.rev,data:await seal(k,m)});
+      if(p.status===200){SYNC.rev=p.rev;ok=true;break}
+      if(p.status!==409)throw new Error('server '+p.status);
+      // un altro dispositivo ha salvato nel frattempo: riparto dalla sua versione
+      r=p.data!==undefined?{status:200,rev:p.rev,data:p.data}:await backupCall({op:'get',id:k.id});
+    }
+    if(!ok)throw new Error('conflitto');
+    if(SYNC){SYNC.last=Date.now();SYNC.err=null}
+  }catch(e){if(SYNC)SYNC.err=String(e.message||e);console.warn('Backup non riuscito',e)}
+  finally{syncBusy=false;syncKeep();syncUI();if(syncAgain){syncAgain=false;syncNow()}}
+}
+function syncUI(){
+  const st=!SYNC?'off':SYNC.err?'err':'ok';
+  document.querySelectorAll('[data-backup]').forEach(b=>b.dataset.sync=st);
+  if(document.getElementById('bk'))openBackup();
+}
+function openBackup(msg){
+  const when=SYNC&&SYNC.last?new Date(SYNC.last).toLocaleString('it-IT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):null;
+  const link=SYNC?location.origin+location.pathname+'#sync='+SYNC.code:'';
+  const status=!SYNC?'':SYNC.err?'⚠️ Ultimo tentativo non riuscito ('+esc(SYNC.err)+"). Riprovo da solo appena c'è rete.":when?'Backup attivo. Ultimo salvataggio: '+when+'.':'Backup attivo. Primo salvataggio in corso…';
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="bk" role="dialog" aria-label="Backup"><h3>Backup</h3>
+   ${SYNC?`<p class="note">${status}</p>
+    <div class="f"><span class="flab">Il tuo codice</span><div class="bkcode">${fmtCode(SYNC.code)}</div>
+     <span class="note">Conservalo in un posto sicuro (password manager, nota, email a te stesso). Senza codice il backup non si può recuperare. Chi ha il codice vede i tuoi task.</span></div>
+    <div class="bkrow"><button type="button" class="btn" data-bk="copy">Copia codice</button><button type="button" class="btn" data-bk="copylink" data-link="${esc(link)}">Copia link per un altro dispositivo</button></div>
+    <div class="bkrow"><button type="button" class="btn" data-bk="now">Sincronizza ora</button><button type="button" class="btn ghost danger" data-bk="off">${msg==='off?'?'Conferma: disattiva':'Disattiva su questo dispositivo'}</button></div>`
+   :`<p class="note">Salva i tuoi task sul server, cifrati: se cambi telefono o cancelli i dati non perdi niente, e puoi usare gli stessi task su più dispositivi.</p>
+    <button type="button" class="btn primary" data-bk="on">Attiva backup</button>
+    <div class="f"><label for="bk-code">Hai già un codice?</label><div class="add"><input id="bk-code" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn" type="button" data-bk="link">Collega</button></div>
+     ${msg&&msg!=='off?'?`<span class="note" style="color:var(--l-red)">${esc(msg)}</span>`:'<span class="note">I task di questo dispositivo si uniscono a quelli del backup.</span>'}</div>`}
+   <div class="actions"><span></span><button type="button" class="btn primary" id="e-cancel">Chiudi</button></div></div></div>`;
+  modalOpened();
+}
+async function linkCode(code){
+  const k=await syncKeys(code),r=await backupCall({op:'get',id:k.id});
+  if(r.status!==200)throw new Error('Server non raggiungibile, riprova.');
+  if(!r.data)throw new Error('Nessun backup con questo codice.');
+  SYNC={code,rev:0};syncKeep();await syncNow();
+}
+async function backupAct(a,btn){
+  if(a==='on'){SYNC={code:newSyncCode(),rev:0};syncKeep();openBackup();await syncNow();return}
+  if(a==='link'){const c=normCode(document.getElementById('bk-code').value);if(!c)return openBackup('Il codice ha 20 caratteri, lettere e numeri.');
+    btn.disabled=true;try{await linkCode(c);toast('Backup collegato')}catch(e){openBackup(e.message)}return}
+  if(a==='copy'||a==='copylink'){const v=a==='copy'?fmtCode(SYNC.code):btn.dataset.link;try{await navigator.clipboard.writeText(v);toast('Copiato')}catch(e){prompt('Copia da qui:',v)}return}
+  if(a==='now'){btn.disabled=true;await syncNow();toast(SYNC&&!SYNC.err?'Sincronizzato':'Non riuscito');return}
+  if(a==='off'){if(btn.textContent.startsWith('Conferma')){SYNC=null;syncKeep();syncUI();toast('Backup disattivato su questo dispositivo')}else openBackup('off?')}
+}
 // temi: id (null = classico), nome, descrizione, anteprima [sfondo, superficie, accento, accento 2], emoji, colore barra di sistema
 const THEMES=[
  [null,'Classico','Blu, segue chiaro/scuro',['#edf0f5','#ffffff','#2b4fd4','#86a0ff'],'','#1b2440'],
@@ -488,18 +610,19 @@ function entries(from,to){
   return m;
 }
 function toggleDone(c){
+  const undo=undoTo(JSON.stringify(S.cards));
   if(!c.done&&c.recur!=='none'&&c.date){
     const nd=nextDate(c,c.date);
     if(nd){
       c.date=nd;c.notified=false;c.snooze=null;c.checklist.forEach(i=>i.d=false);
-      toast('Completata. Prossima volta: '+fmtShort(nd));save();render();return;
+      toast('Completata. Prossima volta: '+fmtShort(nd),undo);save();render();return;
     }
   }
   c.done=!c.done;
   if(!c.done&&c.archived){delete c.archived;const ab=board(c.boardId);if(ab&&!c.listId)c.listId=ab.lists[0].id}
   const b=board(c.boardId);
   if(b){const dl=doneList(b);if(c.done&&dl)c.listId=dl.id;else if(!c.done&&c.listId===dl?.id)c.listId=b.lists[0].id}
-  save();render();
+  save();render();if(c.done)toast('Completata',undo);
 }
 
 function meta(c,opt={}){
@@ -534,7 +657,7 @@ function vOggi(){
   const late=act.filter(c=>c.date<t).sort(byTime);
   const today=S.cards.filter(c=>c.date===t).sort(byTime);
   const nextMap=entries(addDays(t,1),addDays(t,7));
-  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><button class="btn palette-btn" data-style-tog type="button" aria-label="Temi" title="Temi">${I.palette}</button></div>`;
+  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><div class="headbtns"><button class="btn palette-btn" data-backup data-sync="${!SYNC?'off':SYNC.err?'err':'ok'}" type="button" aria-label="Backup" title="Backup">${I.cloud}</button><button class="btn palette-btn" data-style-tog type="button" aria-label="Temi" title="Temi">${I.palette}</button></div></div>`;
   if(IS_APP&&'Notification' in window&&Notification.permission!=='granted')h+=`<div class="empty" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-style:solid"><span style="flex:1;min-width:200px">${Notification.permission==='denied'?'Le notifiche sono bloccate. Riattivale dalle impostazioni del telefono: App › MyTask › Notifiche.':'Attiva le notifiche per ricevere i promemoria.'}</span>${Notification.permission==='default'?'<button class="btn primary" type="button" id="askNotif">Attiva notifiche</button>':''}</div>`;
   if(late.length)h+=`<h2 class="late">In ritardo <span class="n">${late.length}</span></h2><div class="rows">${late.map(c=>row(c,true)).join('')}</div>`;
   h+=`<h2>Programma di oggi <span class="n">${today.length}</span></h2>`+(today.length?`<div class="rows">${today.map(c=>row(c)).join('')}</div>`:`<div class="empty">Niente in programma oggi. Usa il pulsante + per aggiungere qualcosa.</div>`);
@@ -695,6 +818,7 @@ window.addEventListener('popstate',()=>{if(skipPop){skipPop--;return}if(modalHis
 document.getElementById('modal').addEventListener('click',e=>{
   const t=e.target;
   if(t.id==='scrim'||t.id==='e-cancel')return closeEditor();
+  const bk=t.closest('[data-bk]');if(bk)return backupAct(bk.dataset.bk,bk);
   const tp=t.closest('[data-theme-pick]');if(tp){const v=tp.dataset.themePick;setTheme(v==='classic'?null:v);openThemes();return render()}
   if(t.dataset.pick){readForm();const s=t.dataset.pick;draft.dates=draft.dates.includes(s)?draft.dates.filter(x=>x!==s):[...draft.dates,s].sort();drawEditor();return}
   if(t.dataset.pm){readForm();const[y,m]=draft._pm.split('-').map(Number);draft._pm=iso(new Date(y,m-1+Number(t.dataset.pm),1)).slice(0,7);drawEditor();return}
@@ -702,7 +826,7 @@ document.getElementById('modal').addEventListener('click',e=>{
   if(t.dataset.cli!==undefined){readForm();draft.checklist[t.dataset.cli].d=t.checked}
   if(t.dataset.clx!==undefined){readForm();draft.checklist.splice(+t.dataset.clx,1);drawEditor()}
   if(t.id==='cl-add'){readForm();const v=document.getElementById('cl-new').value.trim();if(v){draft.checklist.push({t:v,d:false});drawEditor();document.getElementById('cl-new').focus()}}
-  if(t.id==='e-del'){if(!draft._confirm){readForm();draft._confirm=true;drawEditor()}else{S.cards=S.cards.filter(c=>c.id!==draft.id);save();closeEditor();render();toast('Card eliminata')}}
+  if(t.id==='e-del'){if(!draft._confirm){readForm();draft._confirm=true;drawEditor()}else{const undo=undoTo(JSON.stringify(S.cards));S.cards=S.cards.filter(c=>c.id!==draft.id);save();closeEditor();render();toast('Card eliminata',undo)}}
   if(t.id==='e-time-specific'){readForm();if(!draft.time){const n=new Date();draft.time=pad(n.getHours())+':'+pad(n.getMinutes())}drawEditor();return}
   if(t.id==='e-time-allday'){readForm();draft.time=null;drawEditor();return}
 });
@@ -745,15 +869,15 @@ document.getElementById('modal').addEventListener('submit',e=>{
 
 /* ---------- interazioni ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset,#styleTog,[data-style-tog]');
+  const t=e.target.closest('[data-backup],[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset,#styleTog,[data-style-tog]');
   if(clearArm&&!(t&&t.dataset.clear)){clearArm=null;render()}
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
   if(t.dataset.clear){const id=t.dataset.clear;
     if(clearArm!==id){clearArm=id;return render()}
-    const r=clearCards(c=>c.listId===id);clearArm=null;save();render();
+    const undo=undoTo(JSON.stringify(S.cards)),r=clearCards(c=>c.listId===id);clearArm=null;save();render();
     const msg=[];if(r.del)msg.push(r.del===1?'1 card eliminata':r.del+' card eliminate');
     if(r.arc)msg.push(r.arc===1?'1 card con data resta nel calendario':r.arc+' card con data restano nel calendario');
-    return toast(msg.join(', '))}
+    return toast(msg.join(', '),undo)}
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
   if(t.dataset.view)return goView(t.dataset.view);
   if(t.dataset.open)return openEditor(t.dataset.open);
@@ -765,6 +889,7 @@ document.addEventListener('click',e=>{
   if(t.id==='newBoard'){const n=S.boards.length;const cs=['--l-amber','--l-red','--l-blue','--l-green','--l-violet'];const id='b'+uid();S.boards.push({id,name:'Board '+(n+1),c:cs[n%cs.length],lists:[{id:uid(),name:'Da fare'},{id:uid(),name:'Fatto',done:true}]});S.board=id;save();return render()}
   if(t.id==='testNotif'){const c=S.cards.filter(c=>!c.done&&c.date).sort(byTime).find(c=>c.date>=todayIso())||S.cards[0];return notify(c)}
   if(t.id==='styleTog'||t.hasAttribute('data-style-tog'))return openThemes();
+  if(t.hasAttribute('data-backup'))return openBackup();
   if(t.id==='reset'){S=sample();save();render();toast('Esempi ripristinati')}
 });
 document.addEventListener('submit',e=>{
@@ -902,7 +1027,12 @@ document.addEventListener('click',e=>{if(suppressClick){e.stopPropagation();e.pr
 
 /* ---------- notifiche (anteprima) ---------- */
 const NOTIFS=document.getElementById('notifs');
-function toast(msg){const d=document.createElement('div');d.className='notif';d.style.borderRadius='12px';d.innerHTML=`<div class="nb" style="color:var(--fg)">${esc(msg)}</div>`;NOTIFS.appendChild(d);setTimeout(()=>d.remove(),2600)}
+function toast(msg,undo){const d=document.createElement('div');d.className='notif';d.style.borderRadius='12px';
+  d.innerHTML=`<div style="display:flex;align-items:center;gap:12px"><div class="nb" style="color:var(--fg);flex:1">${esc(msg)}</div>${undo?'<button type="button" class="btn">Annulla</button>':''}</div>`;
+  if(undo)d.querySelector('button').onclick=()=>{d.remove();undo()};
+  NOTIFS.appendChild(d);setTimeout(()=>d.remove(),undo?6000:2600)}
+/* "Annulla" nei messaggi: rimette le card com'erano prima dell'azione */
+function undoTo(json){return ()=>{S.cards=JSON.parse(json);save();render();toast('Annullato')}}
 function whenText(c,day){
   const w=day?(day===todayIso()?'Oggi':fmtShort(day))+(c.time?' alle '+c.time:''):'Senza data';
   return w+(board(c.boardId)?' · '+board(c.boardId).name:'');
@@ -996,7 +1126,14 @@ addEventListener('pagehide',()=>{if(pushSub&&pushTO)syncPush(true)});
 setupPush();
 document.addEventListener('click',e=>{if(e.target.id==='askNotif')Notification.requestPermission().then(()=>{render();setupPush()})});
 if(IS_APP){const r=document.getElementById('reset');if(r)r.hidden=true}
+syncSnap=snapOf();
 render();setInterval(checkReminders,15000);setTimeout(checkReminders,1500);
+/* link "#sync=CODICE" aperto su un altro dispositivo: collega il backup */
+(()=>{const m=location.hash.match(/^#sync=([A-Za-z0-9-]+)/);if(!m)return;history.replaceState(null,'',location.pathname+location.search);const c=normCode(m[1]);
+  if(c&&(!SYNC||SYNC.code!==c))linkCode(c).then(()=>toast('Backup collegato: i task sono sincronizzati')).catch(e=>toast(e.message))})();
+syncUI();setTimeout(syncNow,800);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow();else if(syncTO)syncNow()});
+setInterval(()=>{if(document.visibilityState==='visible')syncNow()},60000);
 </script>
 
 </body>
