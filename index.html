@@ -454,6 +454,7 @@ function openThemes(){
      <span class="tp" style="background:linear-gradient(135deg,${c[0]} 55%,${c[1]})"><i style="background:${c[2]}"></i><i style="background:${c[3]}"></i>${em?`<span>${em}</span>`:''}</span>
      <span class="tn">${n}<span class="td">${d}</span></span></button>`).join('')}</div>
    <div class="actions"><span class="note">La scelta resta salvata su questo dispositivo.</span><button type="button" class="btn primary" id="e-cancel">Fatto</button></div></div></div>`;
+  modalOpened();
 }
 syncStyle();
 /* il calendario si apre sempre sul giorno di oggi */
@@ -631,6 +632,7 @@ function drawEditor(){
    <div class="actions"><div>${d.id?`<button type="button" class="btn ghost danger" id="e-del">${draft._confirm?'Conferma eliminazione':'Elimina'}</button>`:''}</div>
     <div style="display:flex;gap:8px"><button type="button" class="btn" id="e-cancel">Annulla</button><button type="submit" class="btn primary">Salva</button></div></div>
   </form></div>`;
+  modalOpened();
   // ridisegnare il form non deve riportarlo in cima (etichette, checklist, giorni...)
   if(top)document.getElementById('edit').scrollTop=top;
   setTimeout(()=>{if(!draft._focused){document.getElementById('e-title')?.focus();draft._focused=true}initWheel()},0);
@@ -685,7 +687,11 @@ function readForm(){
   const r=g('e-rem').value;draft.reminder=r===''?null:Number(r);draft.recur=g('e-rec').value;
   document.querySelectorAll('[data-clt]').forEach(x=>draft.checklist[x.dataset.clt].t=x.value);
 }
-function closeEditor(){draft=null;document.getElementById('modal').innerHTML=''}
+/* form e temi aggiungono una voce alla cronologia: il tasto indietro del telefono li chiude come "Annulla" invece di uscire dall'app */
+let modalHist=false,skipPop=0;
+function modalOpened(){if(!modalHist){modalHist=true;history.pushState({modal:1},'')}}
+function closeEditor(fromBack){draft=null;document.getElementById('modal').innerHTML='';if(modalHist){modalHist=false;if(fromBack!==true){skipPop++;history.back()}}}
+window.addEventListener('popstate',()=>{if(skipPop){skipPop--;return}if(modalHist)closeEditor(true)});
 document.getElementById('modal').addEventListener('click',e=>{
   const t=e.target;
   if(t.id==='scrim'||t.id==='e-cancel')return closeEditor();
