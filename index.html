@@ -865,11 +865,15 @@ function checkReminders(){
 }
 let swReg=null;
 function handleAction(a,id){const c=card(id);if(!c)return;if(a==='done'&&!c.done)toggleDone(c);if(a==='snooze'){c.snooze=Date.now()+3600e3;save();toast("Ti ricordo di nuovo tra un'ora")}if(a==='open')openEditor(id)}
+/* applica i Fatto/Rimanda premuti sulle notifiche (coda salvata dal service worker); delete() garantisce che ogni azione valga una volta sola */
+let draining=null;
+function drainActions(){if(!('caches' in window))return Promise.resolve();return draining=(draining||Promise.resolve()).then(async()=>{try{const q=await caches.open('mytask-actions'),ks=(await q.keys()).sort((x,y)=>x.url<y.url?-1:1);for(const k of ks){const r=await q.match(k);if(r&&await q.delete(k)){const d=await r.json();handleAction(d.a,d.id)}}}catch(e){}})}
 if(IS_APP&&'serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(r=>{swReg=r}).catch(()=>{});
-  navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.a)handleAction(e.data.a,e.data.id)});
+  navigator.serviceWorker.addEventListener('message',e=>{if(!e.data)return;if(e.data.sync)drainActions();else if(e.data.a)handleAction(e.data.a,e.data.id)});
+  drainActions();
   const q=new URLSearchParams(location.search);if(q.get('a')){setTimeout(()=>handleAction(q.get('a'),q.get('id')),300);history.replaceState(null,'',location.pathname)}
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkReminders()});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){drainActions();checkReminders()}});
 }
 /* ---------- push dal server: promemoria puntuali anche ad app chiusa ---------- */
 const PUSH_URL='https://mytask-push.scresci-dev.workers.dev';// indirizzo del Worker Cloudflare (vuoto = push disattivato)
