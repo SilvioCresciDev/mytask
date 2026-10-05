@@ -591,8 +591,8 @@ function slide(sel,dir){
   const el=document.querySelector(sel);if(!el||!dir||!el.animate||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
   el.animate([{transform:`translateX(${dir*48}px)`,opacity:0},{transform:'none',opacity:1}],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
 }
-function goView(v){const d=Math.sign(VIEWS.findIndex(x=>x[0]===v)-VIEWS.findIndex(x=>x[0]===S.view));S.view=v;if(v==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;slide('#main',d)}
-function goMonth(n){const[y,m]=S.month.split('-').map(Number);S.month=iso(new Date(y,m-1+n,1)).slice(0,7);save();render();slide('.calwrap',n);slide('#main .head h1',n)}
+function goView(v,still){const d=Math.sign(VIEWS.findIndex(x=>x[0]===v)-VIEWS.findIndex(x=>x[0]===S.view));S.view=v;if(v==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;if(!still)slide('#main',d)}
+function goMonth(n,still){const[y,m]=S.month.split('-').map(Number);S.month=iso(new Date(y,m-1+n,1)).slice(0,7);save();render();if(!still){slide('.calwrap',n);slide('#main .head h1',n)}}
 function render(){
   renderNav();
   document.documentElement.classList.toggle('touch',touchUsed);
@@ -782,21 +782,65 @@ function dropOn(target){
 }
 document.addEventListener('drop',e=>{if(!dragId)return;e.preventDefault();dropOn(e.target)});
 
-/* swipe orizzontale: sul calendario cambia mese, altrove passa alla sezione accanto */
+/* swipe orizzontale che segue il dito: sul calendario cambia mese, altrove passa alla sezione accanto */
 let SW=null;
+const VIEW_FN={oggi:()=>vOggi(),calendario:()=>vCal(),board:()=>vBoard(),inbox:()=>vInbox()};
 function hScrollable(el){for(;el&&el!==document.body;el=el.parentElement){const o=getComputedStyle(el).overflowX;if((o==='auto'||o==='scroll')&&el.scrollWidth>el.clientWidth)return true}return false}
+// HTML di una sezione o di un mese senza toccare lo stato
+function peekHTML(fn){const m=S.month,sel=S.sel;try{return fn()}finally{S.month=m;S.sel=sel}}
+function swipeStart(s,step){
+  if(s.cal){
+    const wrap=document.querySelector('.calwrap'),cal=wrap&&wrap.querySelector('.cal');if(!cal)return;
+    const[y,m]=S.month.split('-').map(Number),t=document.createElement('template');
+    t.innerHTML=peekHTML(()=>{S.month=iso(new Date(y,m-1+step,1)).slice(0,7);return vCal()});
+    const pc=t.content.querySelector('.cal');pc.classList.add('peek');
+    Object.assign(pc.style,{position:'absolute',left:cal.offsetLeft+'px',top:cal.offsetTop+'px',width:cal.offsetWidth+'px',pointerEvents:'none'});
+    wrap.style.clipPath='inset(-200px 0 -200px 0)';wrap.appendChild(pc);
+    s.els=[cal];s.peek=pc;s.w=wrap.clientWidth;s.wrap=wrap;
+  }else{
+    const m=document.getElementById('main'),n=VIEWS[VIEWS.findIndex(v=>v[0]===S.view)+step];s.step=step;if(!n){s.els=[m];return}
+    const r=m.getBoundingClientRect(),pm=document.createElement('main');
+    pm.innerHTML=peekHTML(()=>{if(n[0]==='calendario')calToday();return VIEW_FN[n[0]]()});
+    Object.assign(pm.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',overflow:'hidden',pointerEvents:'none',zIndex:5});
+    document.body.appendChild(pm);s.els=[m];s.peek=pm;s.w=r.width;s.view=n[0];
+  }
+  s.step=step;
+}
+function swipeMove(s,dx){
+  if(!s.peek||Math.sign(-dx)!==s.step){s.els&&s.els.forEach(e=>e.style.transform=`translateX(${dx*.3}px)`);if(s.peek)s.peek.style.transform=`translateX(${s.step*s.w}px)`;return}
+  s.els.forEach(e=>e.style.transform=`translateX(${dx}px)`);s.peek.style.transform=`translateX(${dx+s.step*s.w}px)`;
+}
+function swipeEnd(s,go){
+  const all=[...(s.els||[]),s.peek].filter(Boolean),fast=matchMedia('(prefers-reduced-motion: reduce)').matches?0:220;
+  const done=()=>{all.forEach(e=>{e.style.transition='';e.style.transform=''});if(s.wrap)s.wrap.style.clipPath='';
+    if(go){if(s.cal)goMonth(s.step,true);else goView(s.view,true)}
+    s.peek&&s.peek.remove()};
+  all.forEach(e=>e.style.transition=`transform ${fast}ms cubic-bezier(.2,.8,.2,1)`);
+  requestAnimationFrame(()=>{
+    if(go){s.els.forEach(e=>e.style.transform=`translateX(${-s.step*s.w}px)`);s.peek.style.transform='translateX(0)'}
+    else{all.forEach(e=>e.style.transform=e===s.peek?`translateX(${s.step*s.w}px)`:'translateX(0)')}
+    setTimeout(done,fast+20);
+  });
+}
 document.addEventListener('touchstart',e=>{
-  SW=null;const t=e.target;
+  if(SW&&SW.ending)return;SW=null;const t=e.target;
   if(e.touches.length>1||document.getElementById('modal').children.length||t.closest('input,textarea,select,.card[data-drag]')||hScrollable(t))return;
-  const p=e.touches[0];SW={x:p.clientX,y:p.clientY,at:Date.now(),cal:!!t.closest('.cal')};
+  const p=e.touches[0];SW={x:p.clientX,y:p.clientY,lx:p.clientX,lt:Date.now(),v:0,cal:!!t.closest('.cal')&&S.view==='calendario',lock:null};
 },{passive:true});
-document.addEventListener('touchend',e=>{
-  if(!SW)return;const s=SW;SW=null;const p=e.changedTouches[0],dx=p.clientX-s.x,dy=p.clientY-s.y;
-  if(Date.now()-s.at>700||Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
-  const step=dx<0?1:-1;
-  if(s.cal&&S.view==='calendario')return goMonth(step);
-  const n=VIEWS[VIEWS.findIndex(v=>v[0]===S.view)+step];if(n)goView(n[0]);
-},{passive:true});
+document.addEventListener('touchmove',e=>{
+  const s=SW;if(!s||s.ending||e.touches.length>1)return;const p=e.touches[0],dx=p.clientX-s.x,dy=p.clientY-s.y;
+  if(!s.lock){if(Math.abs(dx)<10&&Math.abs(dy)<10)return;if(Math.abs(dx)<=Math.abs(dy)){SW=null;return}s.lock=1;swipeStart(s,dx<0?1:-1)}
+  e.preventDefault();
+  const now=Date.now();if(now>s.lt){s.v=(p.clientX-s.lx)/(now-s.lt);s.lx=p.clientX;s.lt=now}
+  s.dx=dx;swipeMove(s,dx);
+},{passive:false});
+function touchFinish(cancel){
+  const s=SW;if(!s||!s.lock||s.ending){if(s&&!s.ending)SW=null;return}s.ending=1;
+  const dx=s.dx||0,go=!cancel&&s.peek&&Math.sign(-dx)===s.step&&(Math.abs(dx)>s.w*.3||(Math.abs(dx)>30&&Math.sign(-s.v)===s.step&&Math.abs(s.v)>.4));
+  swipeEnd(s,go);setTimeout(()=>{if(SW===s)SW=null},260);
+}
+document.addEventListener('touchend',()=>touchFinish(false),{passive:true});
+document.addEventListener('touchcancel',()=>touchFinish(true),{passive:true});
 
 /* trascinamento su telefono: tieni premuto ~0,4 s, poi sposta il dito */
 let T=null,suppressClick=false,touchUsed=false;
