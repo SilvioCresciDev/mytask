@@ -342,6 +342,13 @@ h2.late{color:var(--late)}
 [data-backup][data-sync="off"]::after{display:none}
 .bkcode{font:700 20px/1.3 ui-monospace,Consolas,monospace;letter-spacing:.06em;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;text-align:center;user-select:all;word-break:break-all}
 .bkrow{display:flex;gap:8px;flex-wrap:wrap}
+.sr-list{display:flex;flex-direction:column;gap:6px;max-height:min(55vh,460px);overflow:auto;margin:0 -4px;padding:0 4px}
+.sr{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--fg);font:inherit;cursor:pointer}
+.sr b{font-weight:700}.sr.done b{text-decoration:line-through;opacity:.6}
+.sr span{font-size:12.5px;color:var(--muted)}
+.sr mark{background:color-mix(in srgb,var(--accent) 30%,transparent);color:inherit;border-radius:3px}
+.snz{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.snz .btn{padding:12px 10px}
 .side-foot .palette-side{display:flex;align-items:center;gap:8px;justify-content:center}
 .side-foot .palette-side svg{width:16px;height:16px}
 .themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
@@ -364,6 +371,7 @@ h2.late{color:var(--late)}
       <button class="btn" id="testNotif" type="button">Prova una notifica</button>
       <button class="btn palette-side" id="styleTog" type="button"></button>
       <button class="btn ghost" id="reset" type="button">Ripristina esempi</button>
+      <button class="btn palette-side" data-search type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Cerca</button>
       <button class="btn palette-side" data-backup type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6 4.5 4.5 0 0 1 17.5 18.5H7z"/></svg>Backup</button>
     </div>
   </aside>
@@ -382,6 +390,7 @@ const I={
  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>',
  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>',
  rep:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg>',
+ search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
  cloud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6 4.5 4.5 0 0 1 17.5 18.5H7z"/></svg>',
  palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.2" fill="currentColor"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
@@ -523,6 +532,75 @@ function syncUI(){
   document.querySelectorAll('[data-backup]').forEach(b=>b.dataset.sync=st);
   if(document.getElementById('bk'))openBackup();
 }
+/* ---------- ricerca: titolo, note, etichette, checklist e board, senza badare ad accenti e maiuscole ---------- */
+const fold=x=>String(x||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
+function searchHits(q){
+  const words=fold(q).split(/\s+/).filter(Boolean);if(!words.length)return [];
+  return S.cards.filter(c=>{const hay=fold([c.title,c.notes,c.labels.join(' '),c.checklist.map(i=>i.t).join(' '),board(c.boardId)?.name||'Inbox'].join(' '));return words.every(w=>hay.includes(w))})
+    .sort((a,b)=>(a.done-b.done)||((a.date||'9999')+(a.time||'')).localeCompare((b.date||'9999')+(b.time||'')));
+}
+function markHit(text,q){
+  // evidenzia le parole cercate nel titolo (confronto senza accenti, posizioni sul testo originale)
+  const f=fold(text);if(f.length!==text.length)return esc(text);
+  const ws=fold(q).split(/\s+/).filter(Boolean),on=new Array(text.length).fill(false);
+  ws.forEach(w=>{let i=f.indexOf(w);while(i>=0){for(let k=i;k<i+w.length;k++)on[k]=true;i=f.indexOf(w,i+w.length)}});
+  let out='',open=false;for(let i=0;i<text.length;i++){if(on[i]!==open){out+=on[i]?'<mark>':'</mark>';open=on[i]}out+=esc(text[i])}return out+(open?'</mark>':'');
+}
+function drawHits(){
+  const q=document.getElementById('sr-q').value,box=document.getElementById('sr-res');if(!box)return;
+  if(!q.trim()){box.innerHTML='<span class="note">Cerca nei titoli, nelle note, nelle etichette e nelle checklist. Trova anche le card completate.</span>';return}
+  const hits=searchHits(q);
+  box.innerHTML=hits.length?`<span class="note">${hits.length===1?'1 card':hits.length+' card'}</span><div class="sr-list">${hits.slice(0,80).map(c=>{
+    const where=[c.date?fmtShort(c.date)+(c.time?' '+c.time:''):null,board(c.boardId)?.name||'Inbox',c.done?'completata':null,c.labels.length?c.labels.join(', '):null].filter(Boolean).join(' · ');
+    return `<button type="button" class="sr ${c.done?'done':''}" data-sr="${c.id}"><b>${markHit(c.title,q)}</b><span>${esc(where)}</span></button>`}).join('')}</div>`
+    :'<span class="note">Nessuna card trovata.</span>';
+}
+function openSearch(){
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="srch" role="dialog" aria-label="Cerca"><h3>Cerca</h3>
+   <div class="f"><input id="sr-q" type="search" placeholder="Es. bolletta, lavoro, dentista" autocomplete="off" enterkeyhint="search" aria-label="Cerca"></div>
+   <div id="sr-res" style="display:flex;flex-direction:column;gap:8px"></div>
+   <div class="actions"><span></span><button type="button" class="btn" id="e-cancel">Chiudi</button></div></div></div>`;
+  modalOpened();drawHits();
+  const i=document.getElementById('sr-q');i.addEventListener('input',drawHits);setTimeout(()=>i.focus(),0);
+}
+
+/* ---------- rimanda: scelte rapide per riavere il promemoria più tardi ---------- */
+function snoozeChoices(){
+  const n=new Date(),at=(d,h)=>{const x=new Date(n);x.setDate(x.getDate()+d);x.setHours(h,0,0,0);return x.getTime()};
+  const out=[['Tra 1 ora',n.getTime()+3600e3],['Tra 3 ore',n.getTime()+3*3600e3]];
+  if(n.getHours()<19)out.push(['Stasera alle 20',at(0,20)]);
+  out.push(['Domani alle 9',at(1,9)]);
+  if(n.getDay()!==6&&n.getDay()!==0)out.push(['Sabato alle 10',at((6-n.getDay()+7)%7,10)]);
+  out.push(['Lunedì alle 9',at((8-n.getDay())%7||7,9)]);
+  return out;
+}
+function snoozeText(ts){
+  const d=new Date(ts),t=todayIso(),day=iso(d),hm=pad(d.getHours())+':'+pad(d.getMinutes());
+  return day===t?'oggi alle '+hm:day===addDays(t,1)?'domani alle '+hm:fmtShort(day)+' alle '+hm;
+}
+function doSnooze(c,ts){
+  const before=JSON.stringify(S.cards);c.snooze=ts;save();render();
+  toast('Ti ricordo di nuovo '+snoozeText(ts),undoTo(before));
+}
+function openSnooze(id){
+  const c=card(id);if(!c)return;
+  const now=new Date(Date.now()+3600e3),def=iso(now)+'T'+pad(now.getHours())+':'+pad(now.getMinutes());
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="snz" data-id="${c.id}" role="dialog" aria-label="Rimanda"><h3>${esc(c.title)}</h3>
+   <p class="note">${esc(whenText(c,c.date))}</p>
+   <span class="flab">Ricordamelo di nuovo</span>
+   <div class="snz">${snoozeChoices().map(([n,ts])=>`<button type="button" class="btn" data-snz="${ts}">${n}</button>`).join('')}</div>
+   <div class="f"><label for="snz-at">Oppure scegli tu</label><div class="add"><input type="datetime-local" id="snz-at" value="${def}"><button type="button" class="btn" data-snz="pick">OK</button></div></div>
+   <div class="actions"><div style="display:flex;gap:8px">${c.done?'':'<button type="button" class="btn" data-snz="done">Fatto</button>'}<button type="button" class="btn" data-snz="open">Apri card</button></div><button type="button" class="btn" id="e-cancel">Chiudi</button></div></div></div>`;
+  modalOpened();
+}
+function snoozeAct(v){
+  const c=card(document.getElementById('snz').dataset.id);if(!c)return closeEditor();
+  if(v==='open')return openEditor(c.id);
+  if(v==='done'){closeEditor();if(!c.done)toggleDone(c);return}
+  let ts=+v;if(v==='pick'){const x=document.getElementById('snz-at').value;ts=x?new Date(x).getTime():NaN;if(!(ts>Date.now()))return toast('Scegli un momento nel futuro')}
+  closeEditor();doSnooze(c,ts);
+}
+
 function openBackup(msg){
   const when=SYNC&&SYNC.last?new Date(SYNC.last).toLocaleString('it-IT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):null;
   const link=SYNC?location.origin+location.pathname+'#sync='+SYNC.code:'';
@@ -657,7 +735,7 @@ function vOggi(){
   const late=act.filter(c=>c.date<t).sort(byTime);
   const today=S.cards.filter(c=>c.date===t).sort(byTime);
   const nextMap=entries(addDays(t,1),addDays(t,7));
-  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><div class="headbtns"><button class="btn palette-btn" data-backup data-sync="${!SYNC?'off':SYNC.err?'err':'ok'}" type="button" aria-label="Backup" title="Backup">${I.cloud}</button><button class="btn palette-btn" data-style-tog type="button" aria-label="Temi" title="Temi">${I.palette}</button></div></div>`;
+  let h=`<div class="head"><div><h1>Oggi</h1><div class="sub">${fmtDay(t)}</div></div><div class="headbtns"><button class="btn palette-btn" data-search type="button" aria-label="Cerca" title="Cerca">${I.search}</button><button class="btn palette-btn" data-backup data-sync="${!SYNC?'off':SYNC.err?'err':'ok'}" type="button" aria-label="Backup" title="Backup">${I.cloud}</button><button class="btn palette-btn" data-style-tog type="button" aria-label="Temi" title="Temi">${I.palette}</button></div></div>`;
   if(IS_APP&&'Notification' in window&&Notification.permission!=='granted')h+=`<div class="empty" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-style:solid"><span style="flex:1;min-width:200px">${Notification.permission==='denied'?'Le notifiche sono bloccate. Riattivale dalle impostazioni del telefono: App › MyTask › Notifiche.':'Attiva le notifiche per ricevere i promemoria.'}</span>${Notification.permission==='default'?'<button class="btn primary" type="button" id="askNotif">Attiva notifiche</button>':''}</div>`;
   if(late.length)h+=`<h2 class="late">In ritardo <span class="n">${late.length}</span></h2><div class="rows">${late.map(c=>row(c,true)).join('')}</div>`;
   h+=`<h2>Programma di oggi <span class="n">${today.length}</span></h2>`+(today.length?`<div class="rows">${today.map(c=>row(c)).join('')}</div>`:`<div class="empty">Niente in programma oggi. Usa il pulsante + per aggiungere qualcosa.</div>`);
@@ -819,6 +897,8 @@ document.getElementById('modal').addEventListener('click',e=>{
   const t=e.target;
   if(t.id==='scrim'||t.id==='e-cancel')return closeEditor();
   const bk=t.closest('[data-bk]');if(bk)return backupAct(bk.dataset.bk,bk);
+  const sr=t.closest('[data-sr]');if(sr)return openEditor(sr.dataset.sr);
+  const sz=t.closest('[data-snz]');if(sz)return snoozeAct(sz.dataset.snz);
   const tp=t.closest('[data-theme-pick]');if(tp){const v=tp.dataset.themePick;setTheme(v==='classic'?null:v);openThemes();return render()}
   if(t.dataset.pick){readForm();const s=t.dataset.pick;draft.dates=draft.dates.includes(s)?draft.dates.filter(x=>x!==s):[...draft.dates,s].sort();drawEditor();return}
   if(t.dataset.pm){readForm();const[y,m]=draft._pm.split('-').map(Number);draft._pm=iso(new Date(y,m-1+Number(t.dataset.pm),1)).slice(0,7);drawEditor();return}
@@ -869,7 +949,7 @@ document.getElementById('modal').addEventListener('submit',e=>{
 
 /* ---------- interazioni ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-backup],[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset,#styleTog,[data-style-tog]');
+  const t=e.target.closest('[data-search],[data-backup],[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset,#styleTog,[data-style-tog]');
   if(clearArm&&!(t&&t.dataset.clear)){clearArm=null;render()}
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
   if(t.dataset.clear){const id=t.dataset.clear;
@@ -890,6 +970,7 @@ document.addEventListener('click',e=>{
   if(t.id==='testNotif'){const c=S.cards.filter(c=>!c.done&&c.date).sort(byTime).find(c=>c.date>=todayIso())||S.cards[0];return notify(c)}
   if(t.id==='styleTog'||t.hasAttribute('data-style-tog'))return openThemes();
   if(t.hasAttribute('data-backup'))return openBackup();
+  if(t.hasAttribute('data-search'))return openSearch();
   if(t.id==='reset'){S=sample();save();render();toast('Esempi ripristinati')}
 });
 document.addEventListener('submit',e=>{
@@ -1040,10 +1121,11 @@ function whenText(c,day){
 function notify(c){
   if(!c)return;const d=document.createElement('div');d.className='notif';
   d.innerHTML=`<div class="nh"><b>${I.bell}</b>MyTask · adesso</div><div class="nt">${esc(c.title)}</div><div class="nb">${esc(whenText(c,c.date))}</div>
-   <div class="na"><button type="button" data-n="done">Fatto</button><button type="button" data-n="snooze">Rimanda di 1 ora</button><button type="button" data-n="open">Apri</button></div>`;
+   <div class="na"><button type="button" data-n="done">Fatto</button><button type="button" data-n="snooze">Rimanda…</button><button type="button" data-n="open">Apri</button></div>`;
   d.addEventListener('click',e=>{const a=e.target.dataset.n;if(!a)return;
     if(a==='done'&&!c.done)toggleDone(c);
-    if(a==='snooze'){c.snooze=Date.now()+3600e3;save();toast('Ti ricordo di nuovo tra un\'ora')}
+    // con il form aperto non lo sostituisco: rimanda di un'ora senza chiedere
+    if(a==='snooze'){if(draft)doSnooze(c,Date.now()+3600e3);else openSnooze(c.id)}
     if(a==='open')openEditor(c.id);
     d.remove()});
   const inApp=()=>{NOTIFS.appendChild(d);setTimeout(()=>d.remove(),20000)};
@@ -1069,7 +1151,7 @@ function checkReminders(){
   if(ch)save();
 }
 let swReg=null;
-function handleAction(a,id){const c=card(id);if(!c)return;if(a==='done'&&!c.done)toggleDone(c);if(a==='snooze'){c.snooze=Date.now()+3600e3;save();toast("Ti ricordo di nuovo tra un'ora")}if(a==='open')openEditor(id)}
+function handleAction(a,id){const c=card(id);if(!c)return;if(a==='done'&&!c.done)toggleDone(c);if(a==='snooze')doSnooze(c,Date.now()+3600e3);if(a==='open'){if(draft||c.done)openEditor(id);else openSnooze(id)}}
 /* applica i Fatto/Rimanda premuti sulle notifiche (coda salvata dal service worker); delete() garantisce che ogni azione valga una volta sola */
 let draining=null;
 function drainActions(){if(!('caches' in window))return Promise.resolve();return draining=(draining||Promise.resolve()).then(async()=>{try{const q=await caches.open('mytask-actions'),ks=(await q.keys()).sort((x,y)=>x.url<y.url?-1:1);for(const k of ks){const r=await q.match(k);if(r&&await q.delete(k)){const d=await r.json();handleAction(d.a,d.id)}}}catch(e){}})}
