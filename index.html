@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--f-body)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.app{display:grid;grid-template-columns:230px minmax(0,1fr);height:100%}
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);height:100%;overflow:clip}
 .side{border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:18px;background:var(--surface)}
 .brand{font:700 22px/1 var(--f-display);letter-spacing:-.01em;padding-inline:8px}
 .brand small{display:block;font:500 11px/1 var(--f-body);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:6px}
@@ -586,6 +586,13 @@ function vInbox(){
    ${cs.length?`<div class="rows" style="margin-top:14px">${cs.map(c=>`<div class="irow"><input type="checkbox" class="check" data-toggle="${c.id}" aria-label="Completa"><span class="title">${esc(c.title)}</span><button class="btn" type="button" data-open="${c.id}">Smista</button></div>`).join('')}</div>`:`<div class="empty" style="margin-top:14px">Inbox vuota. Tutto smistato.</div>`}`;
 }
 
+/* scorrimento di entrata: dir 1 = arriva da destra, -1 = da sinistra */
+function slide(sel,dir){
+  const el=document.querySelector(sel);if(!el||!dir||!el.animate||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  el.animate([{transform:`translateX(${dir*48}px)`,opacity:0},{transform:'none',opacity:1}],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
+}
+function goView(v){const d=Math.sign(VIEWS.findIndex(x=>x[0]===v)-VIEWS.findIndex(x=>x[0]===S.view));S.view=v;if(v==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;slide('#main',d)}
+function goMonth(n){const[y,m]=S.month.split('-').map(Number);S.month=iso(new Date(y,m-1+n,1)).slice(0,7);save();render();slide('.calwrap',n);slide('#main .head h1',n)}
 function render(){
   renderNav();
   document.documentElement.classList.toggle('touch',touchUsed);
@@ -742,10 +749,10 @@ document.addEventListener('click',e=>{
     if(r.arc)msg.push(r.arc===1?'1 card con data resta nel calendario':r.arc+' card con data restano nel calendario');
     return toast(msg.join(', '))}
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
-  if(t.dataset.view){S.view=t.dataset.view;if(S.view==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;return}
+  if(t.dataset.view)return goView(t.dataset.view);
   if(t.dataset.open)return openEditor(t.dataset.open);
   if(t.dataset.board){S.board=t.dataset.board;save();return render()}
-  if(t.dataset.mon!==undefined){const n=+t.dataset.mon;if(!n){S.month=todayIso().slice(0,7);S.sel=todayIso()}else{const[y,m]=S.month.split('-').map(Number);const d=new Date(y,m-1+n,1);S.month=iso(d).slice(0,7)}save();return render()}
+  if(t.dataset.mon!==undefined){const n=+t.dataset.mon;if(!n){S.month=todayIso().slice(0,7);S.sel=todayIso()}else return goMonth(n);save();return render()}
   if(t.dataset.day){S.sel=t.dataset.day;save();return render()}
   if(t.dataset.newDate)return openEditor(null,{date:t.dataset.newDate});
   if(t.id==='fab'){const p={};if(S.view==='board'){const b=board(S.board);p.boardId=b.id;p.listId=b.lists[0].id}if(S.view==='calendario')p.date=S.sel;if(S.view==='oggi')p.date=todayIso();return openEditor(null,p)}
@@ -787,9 +794,8 @@ document.addEventListener('touchend',e=>{
   if(!SW)return;const s=SW;SW=null;const p=e.changedTouches[0],dx=p.clientX-s.x,dy=p.clientY-s.y;
   if(Date.now()-s.at>700||Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy)*1.5)return;
   const step=dx<0?1:-1;
-  if(s.cal&&S.view==='calendario'){const[y,m]=S.month.split('-').map(Number);S.month=iso(new Date(y,m-1+step,1)).slice(0,7);save();return render()}
-  const i=VIEWS.findIndex(v=>v[0]===S.view),n=VIEWS[i+step];if(i<0||!n)return;
-  S.view=n[0];if(S.view==='calendario')calToday();save();render();document.getElementById('main').scrollTop=0;
+  if(s.cal&&S.view==='calendario')return goMonth(step);
+  const n=VIEWS[VIEWS.findIndex(v=>v[0]===S.view)+step];if(n)goView(n[0]);
 },{passive:true});
 
 /* trascinamento su telefono: tieni premuto ~0,4 s, poi sposta il dito */
