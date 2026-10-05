@@ -716,10 +716,10 @@ function openNotifs(){
    <div class="bkrow">${ns==='default'?'<button class="btn primary" type="button" id="askNotif">Attiva notifiche</button>':''}${ns==='granted'?'<button class="btn" type="button" data-nt="test">Prova una notifica</button>':''}</div>
    <div class="f"><span class="flab">Riepilogo del mattino</span>
     <label class="tog"><input type="checkbox" id="nt-digest" ${PREFS.digest?'checked':''} ${ns==='granted'?'':'disabled'}><span>Ricevi ogni giorno quanti task hai in programma e quanti in ritardo</span></label>
-    <div class="tog-row"><label for="nt-at">Orario</label><input type="time" id="nt-at" value="${PREFS.digestAt}" ${ns==='granted'&&PREFS.digest?'':'disabled'}></div>
+    ${ns==='granted'&&PREFS.digest?`<span class="flab" style="margin-top:6px">Orario</span>${wheelHTML('nt-at')}`:''}
     <span class="note">Arriva anche ad app chiusa. Nei giorni senza task non arriva niente. Vale solo per questo dispositivo.</span></div>
    <div class="actions"><span></span><button type="button" class="btn primary" id="e-cancel">${subOf?'Indietro':'Chiudi'}</button></div></div></div>`;
-  modalOpened();
+  modalOpened();setWheel('nt-at',PREFS.digestAt);
 }
 function openSub(k){subOf=true;({notif:openNotifs,backup:()=>openBackup(),themes:openThemes})[k]()}
 /* riepilogo: una voce per ciascuno dei prossimi 14 giorni nella lista dei promemoria inviata al server.
@@ -992,22 +992,25 @@ function timeWheel(d){
    <button type="button" class="btn ${allDay?'primary':''}" id="e-time-allday" aria-pressed="${allDay}">Tutto il giorno</button>
    <button type="button" class="btn ${allDay?'':'primary'}" id="e-time-specific" aria-pressed="${!allDay}">Orario specifico</button>
   </div>`;
-  if(!allDay){
-    const hs=Array.from({length:24},(_,i)=>pad(i)),ms=Array.from({length:60},(_,i)=>pad(i));
-    h+=`<div class="wheel-row">
-     <div class="wheel"><div class="wband"></div>
-      <div class="wcol" id="e-time-h">${hs.map(x=>`<div class="wi" data-v="${x}">${x}</div>`).join('')}</div>
-      <div class="wsep">:</div>
-      <div class="wcol" id="e-time-m">${ms.map(x=>`<div class="wi" data-v="${x}">${x}</div>`).join('')}</div>
-     </div></div>`;
-  }
+  if(!allDay)h+=wheelHTML('e-time');
   return h+'</div>';
 }
+/* rotella ore:minuti come quella della sveglia; prefix-h e prefix-m sono le due colonne */
+function wheelHTML(prefix){
+  const hs=Array.from({length:24},(_,i)=>pad(i)),ms=Array.from({length:60},(_,i)=>pad(i));
+  return `<div class="wheel-row">
+     <div class="wheel"><div class="wband"></div>
+      <div class="wcol" id="${prefix}-h">${hs.map(x=>`<div class="wi" data-v="${x}">${x}</div>`).join('')}</div>
+      <div class="wsep">:</div>
+      <div class="wcol" id="${prefix}-m">${ms.map(x=>`<div class="wi" data-v="${x}">${x}</div>`).join('')}</div>
+     </div></div>`;
+}
+function setWheel(prefix,hm){
+  const h=document.getElementById(prefix+'-h'),m=document.getElementById(prefix+'-m');if(!h||!hm)return;
+  h.scrollTop=(+hm.slice(0,2))*WHEEL_IT;m.scrollTop=(+hm.slice(3,5))*WHEEL_IT;markWheelSel(h);markWheelSel(m);
+}
 function initWheel(){
-  const h=document.getElementById('e-time-h'),m=document.getElementById('e-time-m');
-  if(!h||!draft.time)return;
-  h.scrollTop=(+draft.time.slice(0,2))*WHEEL_IT;m.scrollTop=(+draft.time.slice(3,5))*WHEEL_IT;
-  markWheelSel(h);markWheelSel(m);
+  if(draft.time)setWheel('e-time',draft.time);
 }
 function markWheelSel(col){
   const idx=Math.round(col.scrollTop/WHEEL_IT);
@@ -1068,22 +1071,23 @@ document.getElementById('modal').addEventListener('click',e=>{
   const pr=t.closest('[data-prio]');if(pr){readForm();draft.prio=+pr.dataset.prio||0;if(!draft.prio)delete draft.prio;drawEditor();return}
 });
 document.getElementById('modal').addEventListener('change',e=>{
-  if(e.target.id==='nt-digest'){PREFS.digest=e.target.checked;savePrefs();document.getElementById('nt-at').disabled=!PREFS.digest;if(PREFS.digest)toast('Riepilogo attivo alle '+PREFS.digestAt);return}
-  if(e.target.id==='nt-at'){if(/^\d\d:\d\d$/.test(e.target.value)){PREFS.digestAt=e.target.value;savePrefs()}return}
+  if(e.target.id==='nt-digest'){PREFS.digest=e.target.checked;savePrefs();openNotifs();return}
   const id=e.target.dataset.lbn;if(!id)return;const l=lab(id),v=e.target.value.trim().slice(0,24);
   if(!l)return;if(!v){e.target.value=l.name;return}if(v!==l.name){l.name=v;save();render()}
 });
 let wheelTO;
 document.getElementById('modal').addEventListener('scroll',e=>{
-  const t=e.target;if(t.id!=='e-time-h'&&t.id!=='e-time-m')return;
+  const t=e.target;if(!t.classList||!t.classList.contains('wcol'))return;
+  const prefix=t.id.slice(0,-2);
   markWheelSel(t);
   clearTimeout(wheelTO);
   wheelTO=setTimeout(()=>{
-    const h=document.getElementById('e-time-h'),m=document.getElementById('e-time-m');
+    const h=document.getElementById(prefix+'-h'),m=document.getElementById(prefix+'-m');
     if(!h||!m)return;
-    const hv=Math.round(h.scrollTop/WHEEL_IT),mv=Math.round(m.scrollTop/WHEEL_IT);
+    const hv=Math.round(h.scrollTop/WHEEL_IT),mv=Math.round(m.scrollTop/WHEEL_IT),hm=pad(hv)+':'+pad(mv);
     h.scrollTop=hv*WHEEL_IT;m.scrollTop=mv*WHEEL_IT;
-    draft.time=pad(hv)+':'+pad(mv);
+    if(prefix==='e-time'&&draft)draft.time=hm;
+    if(prefix==='nt-at'&&hm!==PREFS.digestAt){PREFS.digestAt=hm;savePrefs()}
     markWheelSel(h);markWheelSel(m);
   },120);
 },true);
