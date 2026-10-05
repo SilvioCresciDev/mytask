@@ -348,6 +348,7 @@ h2.late{color:var(--late)}
 [data-backup][data-sync="off"]::after{display:none}
 .bkcode{font:700 20px/1.3 ui-monospace,Consolas,monospace;letter-spacing:.06em;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;text-align:center;user-select:all;word-break:break-all}
 .bkrow{display:flex;gap:8px;flex-wrap:wrap}
+.sheet .btn.danger-fill{background:var(--l-red);border-color:var(--l-red);color:#fff;font-weight:700}
 .sr-list{display:flex;flex-direction:column;gap:6px;max-height:min(55vh,460px);overflow:auto;margin:0 -4px;padding:0 4px}
 .sr{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--fg);font:inherit;cursor:pointer}
 .sr b{font-weight:700}.sr.done b{text-decoration:line-through;opacity:.6}
@@ -648,6 +649,23 @@ function labelsAct(t){
     toast('Etichetta "'+name+'" eliminata',()=>{const o=JSON.parse(before);S.cards=o.cards;S.labels=o.labels;save();render();if(document.getElementById('lbm'))openLabels();toast('Annullato')});return}
 }
 
+/* ---------- svuota colonna: conferma in un pop-up ---------- */
+function openClear(listId){
+  const b=board(S.board),l=b&&b.lists.find(x=>x.id===listId);if(!l)return;
+  const cs=S.cards.filter(c=>c.listId===listId&&!c.archived),arc=cs.filter(c=>c.date).length,del=cs.length-arc;
+  const lines=[del?(del===1?'1 card verrà eliminata.':del+' card verranno eliminate.'):'',arc?(arc===1?'1 card con data resta nel calendario come storico.':arc+' card con data restano nel calendario come storico.'):''].filter(Boolean);
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="clr" data-list="${l.id}" role="alertdialog" aria-label="Svuota colonna"><h3>Svuotare "${esc(l.name)}"?</h3>
+   <p class="note">${lines.join('<br>')}<br>Potrai annullare subito dopo.</p>
+   <div class="actions"><span></span><div style="display:flex;gap:8px"><button type="button" class="btn" id="e-cancel">Annulla</button><button type="button" class="btn danger-fill" id="clr-ok">Svuota (${cs.length})</button></div></div></div></div>`;
+  modalOpened();
+}
+function doClear(listId){
+  const undo=undoTo(JSON.stringify(S.cards)),r=clearCards(c=>c.listId===listId);save();render();
+  const msg=[];if(r.del)msg.push(r.del===1?'1 card eliminata':r.del+' card eliminate');
+  if(r.arc)msg.push(r.arc===1?'1 card con data resta nel calendario':r.arc+' card con data restano nel calendario');
+  toast(msg.join(', ')||'Colonna già vuota',undo);
+}
+
 function openBackup(msg){
   const when=SYNC&&SYNC.last?new Date(SYNC.last).toLocaleString('it-IT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):null;
   const link=SYNC?location.origin+location.pathname+'#sync='+SYNC.code:'';
@@ -707,7 +725,6 @@ syncStyle();
 /* il calendario si apre sempre sul giorno di oggi */
 function calToday(){S.sel=todayIso();S.month=S.sel.slice(0,7)}
 calToday();
-let clearArm=null;// id della colonna "Fatto" in attesa di conferma per lo svuotamento
 stampDone();purgeDone();save();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&purgeDone()){save();render()}});
 const board=id=>S.boards.find(b=>b.id===id);
@@ -821,7 +838,7 @@ function vBoard(){
   const tabs=S.boards.map(x=>`<button type="button" class="tab" data-board="${x.id}" aria-pressed="${x.id===b.id}" style="--c:var(${x.c})"><i></i>${esc(x.name)}</button>`).join('')+`<button type="button" class="tab" id="newBoard">+ Nuova board</button>`;
   const cols=b.lists.map(l=>{
     const cs=S.cards.filter(c=>c.listId===l.id);
-    const clear=l.done&&cs.length?`<button type="button" class="btn ghost danger clear-done" data-clear="${l.id}">${clearArm===l.id?'Conferma ('+cs.length+')':'Svuota'}</button>`:'';
+    const clear=l.done&&cs.length?`<button type="button" class="btn ghost danger clear-done" data-clear="${l.id}">Svuota</button>`:'';
     return `<section class="col" data-drop-list="${l.id}"><div class="colh"><span class="colt">${esc(l.name)} <span>${cs.length}</span></span>${clear}</div>
      ${cs.map(c=>`<article class="card ${c.done?'done':''}" draggable="true" data-drag="${c.id}" data-open="${c.id}" style="border-left-color:${cardLabs(c)[0]?labCss(cardLabs(c)[0].c):'transparent'}"><div class="title">${esc(c.title)}</div>${meta(c,{board:false,date:true})}</article>`).join('')}
      <form class="add" data-add-list="${l.id}"><input id="add-${l.id}" placeholder="Aggiungi una card" aria-label="Nuova card in ${esc(l.name)}"><button class="btn" type="submit">+</button></form></section>`;
@@ -847,9 +864,11 @@ function goMonth(n,still){const[y,m]=S.month.split('-').map(Number);S.month=iso(
 function render(){
   renderNav();
   document.documentElement.classList.toggle('touch',touchUsed);
-  const m=document.getElementById('main');
+  const m=document.getElementById('main'),pc=m.querySelector('.cols'),colsKey=S.view+'/'+S.board,sl=pc&&render.colsKey===colsKey?pc.scrollLeft:0;
   m.innerHTML={oggi:vOggi,calendario:vCal,board:vBoard,inbox:vInbox}[S.view]();
   if(touchUsed||matchMedia('(pointer: coarse)').matches)m.querySelectorAll('[draggable="true"]').forEach(x=>x.draggable=false);
+  // ridisegnare la board non deve riportare le colonne all'inizio
+  const nc=m.querySelector('.cols');if(nc&&sl)nc.scrollLeft=sl;render.colsKey=colsKey;
 }
 
 /* ---------- editor ---------- */
@@ -949,6 +968,7 @@ document.getElementById('modal').addEventListener('click',e=>{
   if(t.id==='scrim'&&document.getElementById('lbm'))return closeLabels();
   if(t.id==='scrim'||t.id==='e-cancel')return closeEditor();
   const bk=t.closest('[data-bk]');if(bk)return backupAct(bk.dataset.bk,bk);
+  if(t.id==='clr-ok'){const id=document.getElementById('clr').dataset.list;closeEditor();return doClear(id)}
   if(document.getElementById('lbm'))return labelsAct(t);
   const sr=t.closest('[data-sr]');if(sr)return openEditor(sr.dataset.sr);
   const sz=t.closest('[data-snz]');if(sz)return snoozeAct(sz.dataset.snz);
@@ -1012,14 +1032,8 @@ document.getElementById('modal').addEventListener('submit',e=>{
 /* ---------- interazioni ---------- */
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-search],[data-backup],[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab,#testNotif,#reset,#styleTog,[data-style-tog]');
-  if(clearArm&&!(t&&t.dataset.clear)){clearArm=null;render()}
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
-  if(t.dataset.clear){const id=t.dataset.clear;
-    if(clearArm!==id){clearArm=id;return render()}
-    const undo=undoTo(JSON.stringify(S.cards)),r=clearCards(c=>c.listId===id);clearArm=null;save();render();
-    const msg=[];if(r.del)msg.push(r.del===1?'1 card eliminata':r.del+' card eliminate');
-    if(r.arc)msg.push(r.arc===1?'1 card con data resta nel calendario':r.arc+' card con data restano nel calendario');
-    return toast(msg.join(', '),undo)}
+  if(t.dataset.clear)return openClear(t.dataset.clear);
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
   if(t.dataset.view)return goView(t.dataset.view);
   if(t.dataset.open)return openEditor(t.dataset.open);
