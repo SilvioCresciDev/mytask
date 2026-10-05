@@ -144,6 +144,7 @@ h2.late{color:var(--late)}
 .daytog{display:flex;gap:8px}
 .daytog .btn{flex:1}
 .wheel-row{display:flex;align-items:center;gap:8px}
+.f input.time-in{width:auto;min-width:130px;font:700 18px var(--f-mono,inherit);padding:8px 12px}
 .wheel{position:relative;display:flex;flex:1;height:180px;border:1px solid var(--line);border-radius:10px;background:var(--bg);overflow:hidden}
 .wheel .wband{position:absolute;left:0;right:0;top:72px;height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);pointer-events:none}
 .wcol{flex:1;overflow-y:auto;scroll-snap-type:y mandatory;padding:72px 0;scrollbar-width:none;-ms-overflow-style:none;mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 30%,#000 70%,transparent 100%)}
@@ -995,8 +996,11 @@ function timeWheel(d){
   if(!allDay)h+=wheelHTML('e-time');
   return h+'</div>';
 }
-/* rotella ore:minuti come quella della sveglia; prefix-h e prefix-m sono le due colonne */
+/* rotella ore:minuti come quella della sveglia; prefix-h e prefix-m sono le due colonne.
+   Con mouse e tastiera (PC) la rotella è scomoda: lì c'è un campo orario dove si scrive l'ora */
+const FINE_PTR=()=>!touchUsed&&matchMedia('(hover: hover) and (pointer: fine)').matches;
 function wheelHTML(prefix){
+  if(FINE_PTR())return `<input type="time" class="time-in" id="${prefix}-in" step="60" aria-label="Orario">`;
   const hs=Array.from({length:24},(_,i)=>pad(i)),ms=Array.from({length:60},(_,i)=>pad(i));
   return `<div class="wheel-row">
      <div class="wheel"><div class="wband"></div>
@@ -1006,6 +1010,7 @@ function wheelHTML(prefix){
      </div></div>`;
 }
 function setWheel(prefix,hm){
+  const ti=document.getElementById(prefix+'-in');if(ti){ti.value=hm||'';return}
   const h=document.getElementById(prefix+'-h'),m=document.getElementById(prefix+'-m');if(!h||!hm)return;
   h.scrollTop=(+hm.slice(0,2))*WHEEL_IT;m.scrollTop=(+hm.slice(3,5))*WHEEL_IT;markWheelSel(h);markWheelSel(m);
 }
@@ -1034,6 +1039,7 @@ function readForm(){
   const g=id=>document.getElementById(id);
   draft.title=g('e-title').value.trim();draft.notes=g('e-notes').value;
   if(g('e-date'))draft.date=g('e-date').value||null;
+  const ti=g('e-time-in');if(ti&&/^\d\d:\d\d/.test(ti.value))draft.time=ti.value.slice(0,5);
   const wh=g('e-time-h'),wm=g('e-time-m');if(wh&&wm)draft.time=pad(Math.round(wh.scrollTop/WHEEL_IT))+':'+pad(Math.round(wm.scrollTop/WHEEL_IT));
   const r=g('e-rem').value;draft.reminder=r===''?null:Number(r);draft.recur=g('e-rec').value;
   document.querySelectorAll('[data-clt]').forEach(x=>draft.checklist[x.dataset.clt].t=x.value);
@@ -1071,6 +1077,8 @@ document.getElementById('modal').addEventListener('click',e=>{
   const pr=t.closest('[data-prio]');if(pr){readForm();draft.prio=+pr.dataset.prio||0;if(!draft.prio)delete draft.prio;drawEditor();return}
 });
 document.getElementById('modal').addEventListener('change',e=>{
+  if(e.target.id==='nt-at-in'){if(/^\d\d:\d\d/.test(e.target.value)){PREFS.digestAt=e.target.value.slice(0,5);savePrefs()}return}
+  if(e.target.id==='e-time-in'){if(/^\d\d:\d\d/.test(e.target.value))draft.time=e.target.value.slice(0,5);return}
   if(e.target.id==='nt-digest'){PREFS.digest=e.target.checked;savePrefs();openNotifs();return}
   const id=e.target.dataset.lbn;if(!id)return;const l=lab(id),v=e.target.value.trim().slice(0,24);
   if(!l)return;if(!v){e.target.value=l.name;return}if(v!==l.name){l.name=v;save();render()}
