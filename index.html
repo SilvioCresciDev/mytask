@@ -154,6 +154,12 @@ h2.late{color:var(--late)}
 .f textarea{min-height:64px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .labs{display:flex;flex-wrap:wrap;gap:6px}
+.labs .lab-act{border:1px dashed var(--line);background:none;color:var(--muted);cursor:pointer}
+.lbm-list{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow:auto}
+.lbm-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px}
+.lbdot{width:28px;height:28px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line);padding:0;cursor:pointer}
+.lbm-row input{min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--fg);font:inherit}
+.lbm-row .btn{min-width:44px;padding:6px 10px}
 .labs button{border:1px solid transparent}
 .labs button[aria-pressed="true"]{border-color:var(--c)}
 .labs button[aria-pressed="false"]{opacity:.55}
@@ -395,7 +401,12 @@ const I={
  palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.2" fill="currentColor"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
 };
+// etichette di partenza: l'id coincide col nome, così le card salvate prima delle etichette personalizzate restano valide
 const LABELS={urgente:'--l-red',lavoro:'--l-blue',casa:'--l-green',personale:'--l-violet',idea:'--l-violet',attesa:'--l-amber'};
+const defaultLabels=()=>Object.entries(LABELS).map(([k,v])=>({id:k,name:k,c:v}));
+// colori: i primi seguono il tema, gli altri sono fissi e leggibili sia su chiaro che su scuro
+const LAB_COLORS=['--l-red','--l-amber','--l-green','--l-blue','--l-violet','#14b8a6','#ec4899','#f97316','#8a94a6'];
+const labCss=c=>c&&c.startsWith('--')?`var(${c})`:(c||'var(--muted)');
 const REM=[[null,'Nessuno'],[0,"All'orario"],[10,'10 minuti prima'],[30,'30 minuti prima'],[60,'1 ora prima'],[1440,'1 giorno prima']];
 const REC={none:'Non si ripete',daily:'Ogni giorno',d2:'Ogni 2 giorni',d3:'Ogni 3 giorni',d4:'Ogni 4 giorni',d5:'Ogni 5 giorni',d6:'Ogni 6 giorni',weekly:'Ogni settimana',monthly:'Ogni mese',dates:'Date sparse (le scegli tu)'};
 const STEP={daily:1,d2:2,d3:3,d4:4,d5:5,d6:6,weekly:7};
@@ -436,11 +447,12 @@ function sample(){
    C({title:'Regalo di compleanno per papà'}),
    C({title:'Rinnovare abbonamento treno'})
   ];
-  return {boards,cards:IS_APP?[]:cards,view:'oggi',board:'b1',month:t.slice(0,7),sel:t};
+  return {boards,cards:IS_APP?[]:cards,labels:defaultLabels(),view:'oggi',board:'b1',month:t.slice(0,7),sel:t};
 }
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
 if(!S||!S.boards)S=sample();
+if(!Array.isArray(S.labels))S.labels=defaultLabels();
 /* rimuove le colonne "In corso": le card tornano in "Da fare" */
 S.boards.forEach(b=>{const rm=b.lists.filter(l=>/^in corso$/i.test(l.name));if(!rm.length)return;b.lists=b.lists.filter(l=>!rm.includes(l));const first=b.lists.find(l=>!l.done)||b.lists[0];S.cards.forEach(c=>{if(rm.some(l=>l.id===c.listId))c.listId=first.id})});
 /* segna quando una card è stata completata: serve alla pulizia automatica della colonna "Fatto" */
@@ -458,12 +470,12 @@ var SYNC=null,syncSnap=null,syncTO=null,syncBusy=false,syncAgain=false;
 try{SYNC=JSON.parse(localStorage.getItem('mytask-sync'))}catch(e){}
 function syncKeep(){try{if(SYNC)localStorage.setItem('mytask-sync',JSON.stringify(SYNC));else localStorage.removeItem('mytask-sync')}catch(e){}}
 function bare(o){const {upd,...r}=o;return JSON.stringify(r)}
-function snapOf(){const m={};S.cards.forEach(c=>m['c'+c.id]=bare(c));S.boards.forEach(b=>m['b'+b.id]=bare(b));return m}
+function snapOf(){const m={};S.cards.forEach(c=>m['c'+c.id]=bare(c));S.boards.forEach(b=>m['b'+b.id]=bare(b));S.labels.forEach(l=>m['l'+l.id]=bare(l));return m}
 function stampSync(){
   const now=Date.now(),old=syncSnap;S.tomb=S.tomb||{};
   if(old){
     const seen=new Set(),chk=(p,x)=>{const k=p+x.id;seen.add(k);if(old[k]!==bare(x)){x.upd=now;delete S.tomb[k]}};
-    S.cards.forEach(c=>chk('c',c));S.boards.forEach(b=>chk('b',b));
+    S.cards.forEach(c=>chk('c',c));S.boards.forEach(b=>chk('b',b));S.labels.forEach(l=>chk('l',l));
     for(const k in old)if(!seen.has(k))S.tomb[k]=now;
   }
   for(const k in S.tomb)if(S.tomb[k]<now-90*864e5)delete S.tomb[k];
@@ -476,12 +488,12 @@ function mergeDoc(L,R){
     la.forEach(l=>{const r=rm.get(l.id),w=r&&(r.upd||0)>(l.upd||0)?r:l;if(keep(w))out.push(w)});
     ra.forEach(r=>{if(!lm.has(r.id)&&keep(r))out.push(r)});
     return out};
-  return {cards:pick('c',L.cards,R.cards||[]),boards:pick('b',L.boards,R.boards||[]),tomb};
+  return {cards:pick('c',L.cards,R.cards||[]),boards:pick('b',L.boards,R.boards||[]),labels:pick('l',L.labels||[],R.labels||[]),tomb};
 }
 function applyMerged(m){
-  const before=JSON.stringify([S.cards,S.boards]);S.tomb=m.tomb;
-  if(JSON.stringify([m.cards,m.boards])===before)return;
-  S.cards=m.cards;if(m.boards.length)S.boards=m.boards;if(!board(S.board))S.board=S.boards[0].id;
+  const before=JSON.stringify([S.cards,S.boards,S.labels]);S.tomb=m.tomb;
+  if(JSON.stringify([m.cards,m.boards,m.labels])===before)return;
+  S.cards=m.cards;S.labels=m.labels;if(m.boards.length)S.boards=m.boards;if(!board(S.board))S.board=S.boards[0].id;
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
   syncSnap=snapOf();schedulePush();render();
 }
@@ -512,10 +524,10 @@ async function syncNow(){
     const k=await syncKeys(SYNC.code);let r=await backupCall({op:'get',id:k.id}),ok=false;
     for(let i=0;i<4&&!ok;i++){
       if(r.status!==200||r.data===undefined)throw new Error('server '+r.status);
-      const remote=r.data?await unseal(k,r.data):null,local={cards:S.cards,boards:S.boards,tomb:S.tomb||{}};
+      const remote=r.data?await unseal(k,r.data):null,local={cards:S.cards,boards:S.boards,labels:S.labels,tomb:S.tomb||{}};
       const m=remote?mergeDoc(local,remote):local;
       applyMerged(m);
-      if(remote&&JSON.stringify(m)===JSON.stringify({cards:remote.cards,boards:remote.boards,tomb:remote.tomb})){SYNC.rev=r.rev;ok=true;break}
+      if(remote&&JSON.stringify(m)===JSON.stringify({cards:remote.cards,boards:remote.boards,labels:remote.labels,tomb:remote.tomb})){SYNC.rev=r.rev;ok=true;break}
       const p=await backupCall({op:'put',id:k.id,rev:r.rev,data:await seal(k,m)});
       if(p.status===200){SYNC.rev=p.rev;ok=true;break}
       if(p.status!==409)throw new Error('server '+p.status);
@@ -536,7 +548,7 @@ function syncUI(){
 const fold=x=>String(x||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
 function searchHits(q){
   const words=fold(q).split(/\s+/).filter(Boolean);if(!words.length)return [];
-  return S.cards.filter(c=>{const hay=fold([c.title,c.notes,c.labels.join(' '),c.checklist.map(i=>i.t).join(' '),board(c.boardId)?.name||'Inbox'].join(' '));return words.every(w=>hay.includes(w))})
+  return S.cards.filter(c=>{const hay=fold([c.title,c.notes,cardLabs(c).map(l=>l.name).join(' '),c.checklist.map(i=>i.t).join(' '),board(c.boardId)?.name||'Inbox'].join(' '));return words.every(w=>hay.includes(w))})
     .sort((a,b)=>(a.done-b.done)||((a.date||'9999')+(a.time||'')).localeCompare((b.date||'9999')+(b.time||'')));
 }
 function markHit(text,q){
@@ -551,7 +563,7 @@ function drawHits(){
   if(!q.trim()){box.innerHTML='<span class="note">Cerca nei titoli, nelle note, nelle etichette e nelle checklist. Trova anche le card completate.</span>';return}
   const hits=searchHits(q);
   box.innerHTML=hits.length?`<span class="note">${hits.length===1?'1 card':hits.length+' card'}</span><div class="sr-list">${hits.slice(0,80).map(c=>{
-    const where=[c.date?fmtShort(c.date)+(c.time?' '+c.time:''):null,board(c.boardId)?.name||'Inbox',c.done?'completata':null,c.labels.length?c.labels.join(', '):null].filter(Boolean).join(' · ');
+    const where=[c.date?fmtShort(c.date)+(c.time?' '+c.time:''):null,board(c.boardId)?.name||'Inbox',c.done?'completata':null,cardLabs(c).length?cardLabs(c).map(l=>l.name).join(', '):null].filter(Boolean).join(' · ');
     return `<button type="button" class="sr ${c.done?'done':''}" data-sr="${c.id}"><b>${markHit(c.title,q)}</b><span>${esc(where)}</span></button>`}).join('')}</div>`
     :'<span class="note">Nessuna card trovata.</span>';
 }
@@ -599,6 +611,41 @@ function snoozeAct(v){
   if(v==='done'){closeEditor();if(!c.done)toggleDone(c);return}
   let ts=+v;if(v==='pick'){const x=document.getElementById('snz-at').value;ts=x?new Date(x).getTime():NaN;if(!(ts>Date.now()))return toast('Scegli un momento nel futuro')}
   closeEditor();doSnooze(c,ts);
+}
+
+/* ---------- etichette: crea, rinomina, cambia colore, elimina ---------- */
+var lbArm=null;
+function addLabel(name){
+  name=String(name||'').trim().slice(0,24);if(!name)return null;
+  const same=S.labels.find(l=>fold(l.name)===fold(name));if(same)return same;
+  const used=S.labels.map(l=>l.c),c=LAB_COLORS.find(x=>!used.includes(x))||LAB_COLORS[S.labels.length%LAB_COLORS.length];
+  const l={id:'lb'+uid(),name,c};S.labels.push(l);save();render();return l;
+}
+function openLabels(){
+  const n=id=>S.cards.filter(c=>c.labels.includes(id)).length;
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="lbm" role="dialog" aria-label="Etichette"><h3>Etichette</h3>
+   <p class="note">Tocca il pallino per cambiare colore, il nome per rinominarla.</p>
+   <div class="lbm-list">${S.labels.map(l=>`<div class="lbm-row">
+     <button type="button" class="lbdot" data-lbc="${l.id}" style="background:${labCss(l.c)}" aria-label="Cambia colore di ${esc(l.name)}"></button>
+     <input data-lbn="${l.id}" value="${esc(l.name)}" maxlength="24" aria-label="Nome etichetta">
+     <span class="note" title="Card con questa etichetta">${n(l.id)} card</span>
+     <button type="button" class="btn ghost danger" data-lbx="${l.id}">${lbArm===l.id?'Elimina?':'×'}</button></div>`).join('')||'<span class="note">Nessuna etichetta.</span>'}</div>
+   ${lbArm?`<span class="note">${(c=>c?'La tolgo da '+(c===1?'1 card':c+' card')+'. ':'')(n(lbArm))}Tocca di nuovo per confermare.</span>`:''}
+   <div class="f"><label for="lbm-new">Nuova etichetta</label><div class="add"><input id="lbm-new" placeholder="Es. scuola" maxlength="24" autocomplete="off"><button class="btn" type="button" id="lbm-add">Aggiungi</button></div></div>
+   <div class="actions"><span></span><button type="button" class="btn primary" id="lbm-close">${draft?'Torna alla card':'Fatto'}</button></div></div></div>`;
+  modalOpened();
+}
+function closeLabels(){lbArm=null;if(draft)drawEditor();else closeEditor()}
+function labelsAct(t){
+  if(t.id==='lbm-close'||t.id==='scrim')return closeLabels();
+  if(t.id==='lbm-add'){lbArm=null;addLabel(document.getElementById('lbm-new').value);openLabels();document.getElementById('lbm-new').focus();return}
+  if(t.dataset.lbc){const l=lab(t.dataset.lbc);l.c=LAB_COLORS[(LAB_COLORS.indexOf(l.c)+1)%LAB_COLORS.length];lbArm=null;save();render();return openLabels()}
+  if(t.dataset.lbx){const id=t.dataset.lbx;if(lbArm!==id){lbArm=id;return openLabels()}
+    lbArm=null;const before=JSON.stringify({cards:S.cards,labels:S.labels}),name=lab(id).name;
+    S.labels=S.labels.filter(l=>l.id!==id);S.cards.forEach(c=>{if(c.labels.includes(id))c.labels=c.labels.filter(x=>x!==id)});
+    if(draft)draft.labels=draft.labels.filter(x=>x!==id);
+    save();render();openLabels();
+    toast('Etichetta "'+name+'" eliminata',()=>{const o=JSON.parse(before);S.cards=o.cards;S.labels=o.labels;save();render();if(document.getElementById('lbm'))openLabels();toast('Annullato')});return}
 }
 
 function openBackup(msg){
@@ -665,6 +712,8 @@ stampDone();purgeDone();save();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&purgeDone()){save();render()}});
 const board=id=>S.boards.find(b=>b.id===id);
 const card=id=>S.cards.find(c=>c.id===id);
+const lab=id=>S.labels.find(l=>l.id===id);
+const cardLabs=c=>c.labels.map(lab).filter(Boolean);
 const doneList=b=>b&&b.lists.find(l=>l.done);
 
 function nextDate(c,d){
@@ -707,7 +756,7 @@ function meta(c,opt={}){
   const b=board(c.boardId);let h='';
   if(opt.board!==false&&b)h+=`<span class="chip" style="--c:var(${b.c});color:var(${b.c})"><i></i><span style="color:var(--fg)">${esc(b.name)}</span></span>`;
   if(opt.date&&c.date)h+=`<span class="${c.date<todayIso()&&!c.done?'time late':''}">${fmtShort(c.date)}${c.time?' · '+c.time:''}</span>`;
-  c.labels.forEach(l=>h+=`<span class="chip lab" style="--c:var(${LABELS[l]})">${l}</span>`);
+  cardLabs(c).forEach(l=>h+=`<span class="chip lab" style="--c:${labCss(l.c)}">${esc(l.name)}</span>`);
   if(c.checklist.length)h+=`<span class="ico">${I.list}${c.checklist.filter(i=>i.d).length}/${c.checklist.length}</span>`;
   if(c.reminder!=null&&c.date)h+=`<span class="ico" title="Promemoria">${I.bell}</span>`;
   if(c.recur!=='none')h+=`<span class="ico" title="${REC[c.recur]}">${I.rep}${c.recur==='dates'?(c.dates||[]).filter(x=>x>=(c.date||'')).length+' date':(REC[c.recur]||'').toLowerCase()}</span>`;
@@ -774,7 +823,7 @@ function vBoard(){
     const cs=S.cards.filter(c=>c.listId===l.id);
     const clear=l.done&&cs.length?`<button type="button" class="btn ghost danger clear-done" data-clear="${l.id}">${clearArm===l.id?'Conferma ('+cs.length+')':'Svuota'}</button>`:'';
     return `<section class="col" data-drop-list="${l.id}"><div class="colh"><span class="colt">${esc(l.name)} <span>${cs.length}</span></span>${clear}</div>
-     ${cs.map(c=>`<article class="card ${c.done?'done':''}" draggable="true" data-drag="${c.id}" data-open="${c.id}" style="border-left-color:${c.labels[0]?`var(${LABELS[c.labels[0]]})`:'transparent'}"><div class="title">${esc(c.title)}</div>${meta(c,{board:false,date:true})}</article>`).join('')}
+     ${cs.map(c=>`<article class="card ${c.done?'done':''}" draggable="true" data-drag="${c.id}" data-open="${c.id}" style="border-left-color:${cardLabs(c)[0]?labCss(cardLabs(c)[0].c):'transparent'}"><div class="title">${esc(c.title)}</div>${meta(c,{board:false,date:true})}</article>`).join('')}
      <form class="add" data-add-list="${l.id}"><input id="add-${l.id}" placeholder="Aggiungi una card" aria-label="Nuova card in ${esc(l.name)}"><button class="btn" type="submit">+</button></form></section>`;
   }).join('');
   return `<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">Trascina le card tra le colonne (dal telefono: tieni premuto, poi sposta). Portarle in “Fatto” le segna come completate.</div></div></div>
@@ -825,7 +874,9 @@ function drawEditor(){
     <div class="f"><label for="e-rec">Ripeti</label><select id="e-rec">${Object.entries(REC).map(([k,n])=>`<option value="${k}" ${d.recur===k?'selected':''}>${n}</option>`).join('')}</select></div>
    </div>
    ${d.recur==='dates'?picker(d):''}
-   <div class="f"><span class="flab">Etichette</span><div class="labs">${Object.entries(LABELS).map(([k,v])=>`<button type="button" class="chip lab" data-lab="${k}" aria-pressed="${d.labels.includes(k)}" style="--c:var(${v})">${k}</button>`).join('')}</div></div>
+   <div class="f"><span class="flab">Etichette</span><div class="labs">${S.labels.map(l=>`<button type="button" class="chip lab" data-lab="${l.id}" aria-pressed="${d.labels.includes(l.id)}" style="--c:${labCss(l.c)}">${esc(l.name)}</button>`).join('')}
+     ${d._newLab?'':'<button type="button" class="chip lab-act" id="lab-add">+ Nuova</button>'}<button type="button" class="chip lab-act" id="lab-manage">Modifica</button></div>
+     ${d._newLab?`<div class="add"><input id="lab-new" placeholder="Nome etichetta" maxlength="24" autocomplete="off"><button class="btn" type="button" id="lab-new-ok">Aggiungi</button></div>`:''}</div>
    <div class="f"><span class="flab">Checklist</span><div class="cl">${d.checklist.map((i,n)=>`<div class="cli"><input type="checkbox" class="check" data-cli="${n}" ${i.d?'checked':''} aria-label="Fatto"><input type="text" id="cl-${n}" data-clt="${n}" value="${esc(i.t)}"><button type="button" class="x" data-clx="${n}" aria-label="Rimuovi">×</button></div>`).join('')}
     <div class="add"><input id="cl-new" placeholder="Aggiungi un elemento"><button class="btn" type="button" id="cl-add">+</button></div></div></div>
    <div class="f"><label for="e-notes">Note</label><textarea id="e-notes">${esc(d.notes)}</textarea></div>
@@ -892,16 +943,21 @@ function readForm(){
 let modalHist=false,skipPop=0;
 function modalOpened(){if(!modalHist){modalHist=true;history.pushState({modal:1},'')}}
 function closeEditor(fromBack){draft=null;document.getElementById('modal').innerHTML='';if(modalHist){modalHist=false;if(fromBack!==true){skipPop++;history.back()}}}
-window.addEventListener('popstate',()=>{if(skipPop){skipPop--;return}if(modalHist)closeEditor(true)});
+window.addEventListener('popstate',()=>{if(skipPop){skipPop--;return}if(!modalHist)return;if(document.getElementById('lbm')&&draft){modalHist=false;lbArm=null;drawEditor();return}closeEditor(true)});
 document.getElementById('modal').addEventListener('click',e=>{
   const t=e.target;
+  if(t.id==='scrim'&&document.getElementById('lbm'))return closeLabels();
   if(t.id==='scrim'||t.id==='e-cancel')return closeEditor();
   const bk=t.closest('[data-bk]');if(bk)return backupAct(bk.dataset.bk,bk);
+  if(document.getElementById('lbm'))return labelsAct(t);
   const sr=t.closest('[data-sr]');if(sr)return openEditor(sr.dataset.sr);
   const sz=t.closest('[data-snz]');if(sz)return snoozeAct(sz.dataset.snz);
   const tp=t.closest('[data-theme-pick]');if(tp){const v=tp.dataset.themePick;setTheme(v==='classic'?null:v);openThemes();return render()}
   if(t.dataset.pick){readForm();const s=t.dataset.pick;draft.dates=draft.dates.includes(s)?draft.dates.filter(x=>x!==s):[...draft.dates,s].sort();drawEditor();return}
   if(t.dataset.pm){readForm();const[y,m]=draft._pm.split('-').map(Number);draft._pm=iso(new Date(y,m-1+Number(t.dataset.pm),1)).slice(0,7);drawEditor();return}
+  if(t.id==='lab-add'){readForm();draft._newLab=true;drawEditor();document.getElementById('lab-new')?.focus();return}
+  if(t.id==='lab-new-ok'){readForm();const l=addLabel(document.getElementById('lab-new').value);draft._newLab=false;if(l&&!draft.labels.includes(l.id))draft.labels.push(l.id);drawEditor();return}
+  if(t.id==='lab-manage'){readForm();return openLabels()}
   if(t.dataset.lab){readForm();const l=t.dataset.lab;draft.labels=draft.labels.includes(l)?draft.labels.filter(x=>x!==l):[...draft.labels,l];drawEditor()}
   if(t.dataset.cli!==undefined){readForm();draft.checklist[t.dataset.cli].d=t.checked}
   if(t.dataset.clx!==undefined){readForm();draft.checklist.splice(+t.dataset.clx,1);drawEditor()}
@@ -909,6 +965,10 @@ document.getElementById('modal').addEventListener('click',e=>{
   if(t.id==='e-del'){if(!draft._confirm){readForm();draft._confirm=true;drawEditor()}else{const undo=undoTo(JSON.stringify(S.cards));S.cards=S.cards.filter(c=>c.id!==draft.id);save();closeEditor();render();toast('Card eliminata',undo)}}
   if(t.id==='e-time-specific'){readForm();if(!draft.time){const n=new Date();draft.time=pad(n.getHours())+':'+pad(n.getMinutes())}drawEditor();return}
   if(t.id==='e-time-allday'){readForm();draft.time=null;drawEditor();return}
+});
+document.getElementById('modal').addEventListener('change',e=>{
+  const id=e.target.dataset.lbn;if(!id)return;const l=lab(id),v=e.target.value.trim().slice(0,24);
+  if(!l)return;if(!v){e.target.value=l.name;return}if(v!==l.name){l.name=v;save();render()}
 });
 let wheelTO;
 document.getElementById('modal').addEventListener('scroll',e=>{
@@ -930,6 +990,8 @@ document.getElementById('modal').addEventListener('change',e=>{
   if(e.target.id==='e-rec'){readForm();if(draft.recur==='dates'&&!(draft.dates||[]).length)draft.dates=draft.date?[draft.date]:[];drawEditor()}
 });
 document.getElementById('modal').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.target.id==='lab-new'){e.preventDefault();document.getElementById('lab-new-ok').click();return}
+  if(e.key==='Enter'&&e.target.id==='lbm-new'){e.preventDefault();document.getElementById('lbm-add').click();return}
   if(e.key==='Escape')closeEditor();
   if(e.key==='Enter'&&e.target.id==='cl-new'){e.preventDefault();document.getElementById('cl-add').click()}
 });

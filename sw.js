@@ -1,5 +1,5 @@
 // MyTask service worker: funziona offline e gestisce i pulsanti delle notifiche
-const CACHE='mytask-v26',QUEUE='mytask-actions';
+const CACHE='mytask-v27',QUEUE='mytask-actions';
 const FILES=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.all(FILES.map(f=>fetch(f,{cache:'no-store'}).then(r=>c.put(f,r))))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE&&x!==QUEUE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
