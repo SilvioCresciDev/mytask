@@ -36,10 +36,11 @@ export default {
       const rem = (Array.isArray(d.reminders) ? d.reminders : []).slice(0, MAX_REMINDERS)
         .filter(r => r && typeof r.id === 'string' && Number.isFinite(r.at))
         .map(r => ({ id: r.id.slice(0, 64), at: Math.round(r.at), title: String(r.title || '').slice(0, 200), body: String(r.body || '').slice(0, 300) }));
+      // next_due ignora i promemoria già inviati: se è uno di quelli, il cron lo scopre e ricalcola
       await env.DB.prepare(
-        `INSERT INTO devices(device,endpoint,p256dh,auth,reminders,sent,updated) VALUES(?,?,?,?,?,'[]',?)
-         ON CONFLICT(device) DO UPDATE SET endpoint=excluded.endpoint,p256dh=excluded.p256dh,auth=excluded.auth,reminders=excluded.reminders,updated=excluded.updated`
-      ).bind(d.device, s.endpoint, s.keys.p256dh, s.keys.auth, JSON.stringify(rem), Date.now()).run();
+        `INSERT INTO devices(device,endpoint,p256dh,auth,reminders,sent,updated,next_due) VALUES(?,?,?,?,?,'[]',?,?)
+         ON CONFLICT(device) DO UPDATE SET endpoint=excluded.endpoint,p256dh=excluded.p256dh,auth=excluded.auth,reminders=excluded.reminders,updated=excluded.updated,next_due=excluded.next_due`
+      ).bind(d.device, s.endpoint, s.keys.p256dh, s.keys.auth, JSON.stringify(rem), Date.now(), nextDue(rem, new Set(), Date.now())).run();
       return reply(200, { ok: true, count: rem.length });
     }
     // backup: il server conserva solo dati già cifrati dall'app; rev evita di sovrascrivere modifiche di un altro dispositivo
@@ -72,15 +73,20 @@ export default {
 
 const validDevice = d => typeof d === 'string' && /^[A-Za-z0-9-]{20,64}$/.test(d);
 const key = r => r.id + '@' + r.at;
+// istante del prossimo promemoria da inviare (null = nessuno): il cron legge solo i dispositivi con next_due scaduto
+const nextDue = (rem, sent, now) => rem.reduce((m, r) => !sent.has(key(r)) && r.at > now - LATE_LIMIT && (m === null || r.at < m) ? r.at : m, null);
 
 async function sendDue(env) {
   const now = Date.now();
-  const { results } = await env.DB.prepare('SELECT * FROM devices').all();
+  const { results } = await env.DB.prepare('SELECT * FROM devices WHERE next_due <= ?').bind(now).all();
   for (const dev of results) {
     const rem = JSON.parse(dev.reminders || '[]');
     const sent = new Set(JSON.parse(dev.sent || '[]'));
     const due = rem.filter(r => r.at <= now && r.at > now - LATE_LIMIT && !sent.has(key(r)));
-    if (!due.length) continue;
+    if (!due.length) {
+      await env.DB.prepare('UPDATE devices SET next_due=? WHERE device=?').bind(nextDue(rem, sent, now), dev.device).run();
+      continue;
+    }
     console.log('sending', due.length, 'reminders to', dev.device);
     let gone = false;
     for (const r of due) {
@@ -95,7 +101,7 @@ async function sendDue(env) {
     }
     // tiene solo le chiavi dei promemoria ancora nella lista, così la colonna non cresce all'infinito
     const live = new Set(rem.map(key));
-    await env.DB.prepare('UPDATE devices SET sent=? WHERE device=?').bind(JSON.stringify([...sent].filter(k => live.has(k))), dev.device).run();
+    await env.DB.prepare('UPDATE devices SET sent=?,next_due=? WHERE device=?').bind(JSON.stringify([...sent].filter(k => live.has(k))), nextDue(rem, sent, now), dev.device).run();
   }
 }
 

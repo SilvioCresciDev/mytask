@@ -5,8 +5,10 @@ CREATE TABLE IF NOT EXISTS devices (
   auth TEXT NOT NULL,
   reminders TEXT NOT NULL DEFAULT '[]',
   sent TEXT NOT NULL DEFAULT '[]',
-  updated INTEGER
+  updated INTEGER,
+  next_due INTEGER -- prossimo promemoria da inviare; il cron legge solo le righe scadute
 );
+CREATE INDEX IF NOT EXISTS devices_next_due ON devices(next_due);
 
 -- backup cifrato dei dati dell'app: id = hash del codice di backup, data = JSON cifrato lato client
 CREATE TABLE IF NOT EXISTS backups (
@@ -15,3 +17,8 @@ CREATE TABLE IF NOT EXISTS backups (
   data TEXT NOT NULL,
   updated INTEGER
 );
+
+-- migrazione per un database creato prima di next_due (una volta sola):
+--   ALTER TABLE devices ADD COLUMN next_due INTEGER;
+--   CREATE INDEX IF NOT EXISTS devices_next_due ON devices(next_due);
+--   UPDATE devices SET next_due=0;  -- il cron ricalcola il valore giusto al primo giro

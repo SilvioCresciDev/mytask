@@ -1291,7 +1291,8 @@ render();setInterval(checkReminders,15000);setTimeout(checkReminders,1500);
   if(c&&(!SYNC||SYNC.code!==c))linkCode(c).then(()=>toast('Backup collegato: i task sono sincronizzati')).catch(e=>toast(e.message))})();
 syncUI();setTimeout(syncNow,800);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow();else if(syncTO)syncNow()});
-setInterval(()=>{if(document.visibilityState==='visible')syncNow()},60000);
+// controllo periodico ogni 5 minuti: le modifiche partono già subito dopo il salvataggio e all'apertura
+setInterval(()=>{if(document.visibilityState==='visible')syncNow()},300000);
 </script>
 
 </body>
