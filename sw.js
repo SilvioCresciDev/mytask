@@ -1,6 +1,9 @@
 // MyTask service worker: funziona offline e gestisce i pulsanti delle notifiche
-const CACHE='mytask-v32',QUEUE='mytask-actions';
-const FILES=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png'];
+// i file si aggiornano da soli a ogni apertura online (prima la rete): il nome della cache va cambiato
+// solo quando cambia l'elenco FILES, e il test tests/sw.test.js controlla che l'elenco sia completo
+const CACHE='mytask-v33',QUEUE='mytask-actions';
+const FILES=['./','index.html','app.css','theme.js','logic.js','app.js','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png',
+  'fonts/atkinson-400.woff2','fonts/atkinson-700.woff2','fonts/bricolage.woff2','fonts/fredoka.woff2','fonts/jetbrains-mono-500.woff2'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.all(FILES.map(f=>fetch(f,{cache:'no-store'}).then(r=>c.put(f,r))))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE&&x!==QUEUE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
@@ -9,13 +12,11 @@ self.addEventListener('fetch',e=>{
   if(url.origin===location.origin){
     // prima la rete (per ricevere gli aggiornamenti), poi la copia salvata se sei offline
     e.respondWith(fetch(req,{cache:'no-store'}).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put(req,c));return r}).catch(()=>caches.match(req).then(r=>r||caches.match('index.html'))));
-  }else if(url.hostname.endsWith('gstatic.com')||url.hostname.endsWith('googleapis.com')){
-    e.respondWith(caches.match(req).then(r=>r||fetch(req).then(n=>{const c=n.clone();caches.open(CACHE).then(x=>x.put(req,c));return n})));
   }
 });
 self.addEventListener('push',e=>{
   let d={};try{d=e.data?e.data.json():{}}catch(err){}
-  e.waitUntil(self.registration.showNotification(d.title||'MyTask',{body:d.body||'',tag:d.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:d.id},actions:String(d.id||'').startsWith('digest-')?[]:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}));
+  e.waitUntil(self.registration.showNotification(d.title||'MyTask',{body:d.body||'',tag:d.id,renotify:true,icon:'icon-192.png',badge:'badge-96.png',data:{id:d.id},actions:/^(digest|sys)-/.test(String(d.id||''))?[]:[{action:'done',title:'Fatto'},{action:'snooze',title:'Rimanda di 1 ora'}]}));
 });
 // Fatto/Rimanda finiscono in una coda salvata: se l'app è congelata il messaggio si perderebbe,
 // così l'app la svuota appena torna visibile

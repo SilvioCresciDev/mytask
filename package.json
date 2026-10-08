@@ -1,0 +1,9 @@
+{
+  "name": "mytask",
+  "private": true,
+  "description": "Agenda personale con board e promemoria (PWA)",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check app.js && node --check logic.js && node --check theme.js && node --check sw.js && node --check push/src/index.js"
+  }
+}
