@@ -11,6 +11,7 @@ const I={
  cloud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6 4.5 4.5 0 0 1 17.5 18.5H7z"/></svg>',
  palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.2" fill="currentColor"/></svg>',
  file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3 3 3-3"/></svg>',
+ users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
 };
 // etichette di partenza: l'id coincide col nome, così le card salvate prima delle etichette personalizzate restano valide
@@ -23,7 +24,8 @@ const REC={none:'Non si ripete',daily:'Ogni giorno',d2:'Ogni 2 giorni',d3:'Ogni 
 // nome storico della chiave: cambiarlo farebbe perdere i dati già salvati. La versione dei dati è in S.v (vedi migrate)
 const KEY='agenda-proto-v1';
 const ALLDAY_AT='09:00';
-const uid=()=>Math.random().toString(36).slice(2,9);
+// 10 caratteri: con le board condivise gli id nascono su più dispositivi di persone diverse
+const uid=()=>[...crypto.getRandomValues(new Uint8Array(10))].map(b=>'abcdefghijklmnopqrstuvwxyz0123456789'[b%36]).join('');
 const fmtDay=s=>new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
 const fmtShort=s=>new Date(s+'T12:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
 
@@ -35,7 +37,7 @@ function sample(){
    {id:'b2',name:'Casa',c:'--l-green',lists:[{id:'l4',name:'Da fare'},{id:'l5',name:'Da comprare'},{id:'l6',name:'Fatto',done:true}]},
    {id:'b3',name:'Personale',c:'--l-violet',lists:[{id:'l7',name:'Da fare'},{id:'l9',name:'Fatto',done:true}]}
   ];
-  return {v:SCHEMA,boards,cards:[],labels:defaultLabels(),view:'oggi',board:'b1',month:t.slice(0,7),sel:t};
+  return {v:SCHEMA,boards,cards:[],labels:defaultLabels(),joins:[],view:'oggi',board:'b1',month:t.slice(0,7),sel:t};
 }
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
@@ -65,22 +67,33 @@ try{SYNC=JSON.parse(localStorage.getItem('mytask-sync'))}catch(e){}
 function syncKeep(){try{if(SYNC)localStorage.setItem('mytask-sync',JSON.stringify(SYNC));else localStorage.removeItem('mytask-sync')}catch(e){}}
 /* orologio logico: mai indietro rispetto agli istanti già visti, anche con l'orologio del telefono sbagliato */
 function tick(){const t=Math.max(Date.now(),(S.hlc||0)+1);S.hlc=t;return t}
-function snapOf(){const m={};S.cards.forEach(c=>m['c'+c.id]=fieldsOf(c));S.boards.forEach(b=>m['b'+b.id]=fieldsOf(b));S.labels.forEach(l=>m['l'+l.id]=fieldsOf(l));return m}
+function snapOf(){const m={};for(const k in COLS)(S[k]||[]).forEach(x=>m[COLS[k]+x.id]=fieldsOf(x));return m}
 function stampSync(){
   const old=syncSnap;S.tomb=S.tomb||{};
   if(old){
     const now=tick(),seen=new Set(),chk=(p,x)=>{const k=p+x.id;seen.add(k);if(stampItem(x,old[k],now))delete S.tomb[k]};
-    S.cards.forEach(c=>chk('c',c));S.boards.forEach(b=>chk('b',b));S.labels.forEach(l=>chk('l',l));
+    for(const k in COLS)(S[k]||[]).forEach(x=>chk(COLS[k],x));
     for(const k in old)if(!seen.has(k))S.tomb[k]=now;
   }
   const lim=Date.now()-TOMB_KEEP_DAYS*864e5;for(const k in S.tomb)if(S.tomb[k]<lim)delete S.tomb[k];
   syncSnap=snapOf();
 }
+/* il backup personale contiene tutto tranne le board condivise e le loro card, che stanno nei loro documenti;
+   contiene però l'elenco delle board condivise (joins), così gli altri tuoi dispositivi entrano da soli */
+const isShared=id=>!!id&&(S.joins||[]).some(j=>j.id===id);
+function personalDoc(){return {cards:S.cards.filter(c=>!isShared(c.boardId)),boards:S.boards.filter(b=>!isShared(b.id)),labels:S.labels,joins:S.joins||[],tomb:S.tomb||{}}}
 function applyMerged(m){
   S.hlc=Math.max(S.hlc||0,maxStamp(m));
-  const same=sameDoc(m,{cards:S.cards,boards:S.boards,labels:S.labels,tomb:m.tomb});S.tomb=m.tomb;
+  const same=sameDoc(m,{...personalDoc(),tomb:m.tomb});S.tomb=m.tomb;
   if(same){store();return}
-  S.cards=m.cards;S.labels=m.labels;if(m.boards.length)S.boards=m.boards;if(!board(S.board))S.board=S.boards[0].id;
+  // board condivise lasciate da un altro tuo dispositivo: spariscono anche qui, senza toccare il documento condiviso
+  const kept=new Set(m.joins.map(j=>j.id)),stay=id=>isShared(id)&&kept.has(id);
+  const shCards=S.cards.filter(c=>stay(c.boardId)),shBoards=S.boards.filter(b=>stay(b.id));
+  (S.joins||[]).forEach(j=>{if(!kept.has(j.id))delete SHARES[j.id]});sharesKeep();
+  const newJoin=m.joins.some(j=>!isShared(j.id));
+  S.joins=m.joins;S.cards=[...m.cards,...shCards];S.labels=m.labels;
+  S.boards=[...m.boards,...shBoards];if(!S.boards.length)S.boards=sample().boards;if(!board(S.board))S.board=S.boards[0].id;
+  if(newJoin)setTimeout(syncShares,0);
   // riparo dopo aver fissato la fotografia: le correzioni contano come modifiche locali e partono col prossimo salvataggio
   syncSnap=snapOf();if(repair(S)){stampSync();queueSync()}
   store();schedulePush();render();
@@ -89,10 +102,11 @@ const SYNC_AL='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function newSyncCode(){return [...crypto.getRandomValues(new Uint8Array(20))].map(b=>SYNC_AL[b&31]).join('')}
 function normCode(v){const c=String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return c.length===20&&[...c].every(x=>SYNC_AL.includes(x))?c:null}
 const fmtCode=c=>c.match(/.{5}/g).join('-');
-async function syncKeys(code){
-  const h=async x=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(x)));
-  return {id:[...await h('mytask-id:'+code)].map(b=>b.toString(16).padStart(2,'0')).join(''),
-    key:await crypto.subtle.importKey('raw',await h('mytask-key:'+code),'AES-GCM',false,['encrypt','decrypt'])};
+// kind 'share': le board condivise usano chiavi diverse, così un loro codice non apre mai un backup personale
+async function syncKeys(code,kind){
+  const h=async x=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(x))),p=kind==='share'?'mytask-share-':'mytask-';
+  return {id:[...await h(p+'id:'+code)].map(b=>b.toString(16).padStart(2,'0')).join(''),
+    key:await crypto.subtle.importKey('raw',await h(p+'key:'+code),'AES-GCM',false,['encrypt','decrypt'])};
 }
 async function seal(k,obj){
   const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},k.key,new TextEncoder().encode(JSON.stringify(obj))));
@@ -104,7 +118,8 @@ async function backupCall(body){
   const r=await fetch(PUSH_URL+'/backup',{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body)});
   let j={};try{j=await r.json()}catch(e){}return {status:r.status,...j};
 }
-function queueSync(){if(!SYNC)return;clearTimeout(syncTO);syncTO=setTimeout(syncNow,2500)}
+function queueSync(){if(!SYNC&&!(S.joins||[]).length)return;clearTimeout(syncTO);syncTO=setTimeout(syncAll,2500)}
+function syncAll(){syncNow();syncShares()}
 async function syncNow(){
   if(!SYNC||!PUSH_URL)return;if(syncBusy){syncAgain=true;return}
   syncBusy=true;clearTimeout(syncTO);syncTO=null;
@@ -112,7 +127,7 @@ async function syncNow(){
     const k=await syncKeys(SYNC.code);let r=await backupCall({op:'get',id:k.id}),ok=false;
     for(let i=0;i<4&&!ok;i++){
       if(r.status!==200||r.data===undefined)throw new Error('server '+r.status);
-      const remote=r.data?await unseal(k,r.data):null,local={cards:S.cards,boards:S.boards,labels:S.labels,tomb:S.tomb||{}};
+      const remote=r.data?await unseal(k,r.data):null,local=personalDoc();
       const m=remote?mergeDoc(local,remote,SYNC.base):local;
       applyMerged(m);
       // base: tutto ciò che è segnato fino a qui adesso è anche sul server (serve a mergeDoc per le eliminazioni)
@@ -134,6 +149,93 @@ function syncUI(){
   document.querySelectorAll('[data-settings]').forEach(b=>b.dataset.sync=st);
   if(document.getElementById('bk'))openBackup();else if(document.getElementById('set'))openSettings();
 }
+/* ---------- board condivise: un documento cifrato per board, stesso server del backup ---------- */
+var SHARES={},sharesBusy=false,sharesAgain=false;
+try{SHARES=JSON.parse(localStorage.getItem('mytask-shares'))||{}}catch(e){}
+function sharesKeep(){try{localStorage.setItem('mytask-shares',JSON.stringify(SHARES))}catch(e){}}
+function sharedDoc(bid){
+  const b=board(bid),cards=S.cards.filter(c=>c.boardId===bid),used=new Set(cards.flatMap(c=>c.labels));
+  return {cards,boards:b?[b]:[],labels:S.labels.filter(l=>used.has(l.id))};
+}
+function applyShared(bid,m){
+  if(!isShared(bid))return;
+  S.hlc=Math.max(S.hlc||0,maxStamp(m));
+  for(const k in m.tomb)S.tomb[k]=Math.max(S.tomb[k]||0,m.tomb[k]);
+  const cur=sharedDoc(bid),pick=d=>({cards:d.cards,boards:d.boards});
+  const newLabs=m.labels.filter(l=>!lab(l.id));
+  if(sameDoc(pick(m),pick(cur))&&!newLabs.length){store();return}
+  S.cards=[...S.cards.filter(c=>c.boardId!==bid),...m.cards.map(c=>c.boardId===bid?c:{...c,boardId:bid})];
+  const b=m.boards.find(x=>x.id===bid);if(b){const i=S.boards.findIndex(x=>x.id===bid);if(i>=0)S.boards[i]=b;else S.boards.push(b)}
+  syncSnap=snapOf();
+  // etichette nuove per questo dispositivo: entrano come create qui, così arrivano anche nel backup personale
+  if(newLabs.length){newLabs.forEach(l=>S.labels.push(cloneAs(l,l.id)));stampSync();queueSync()}
+  if(repair(S)){stampSync();queueSync()}
+  store();schedulePush();render();
+}
+async function syncShare(j){
+  const st=SHARES[j.id]||{rev:0};
+  try{
+    const k=await syncKeys(j.code,'share');let r=await backupCall({op:'get',id:k.id}),ok=false;
+    for(let i=0;i<4&&!ok;i++){
+      if(r.status!==200||r.data===undefined)throw new Error('server '+r.status);
+      const remote=r.data?await unseal(k,r.data):null,local={...sharedDoc(j.id),tomb:routeTomb(S.tomb,remote)};
+      const m=remote?mergeDoc(local,remote,st.base):local;
+      applyShared(j.id,m);
+      const base=maxStamp(m);
+      if(remote&&sameDoc(m,remote)){st.rev=r.rev;st.base=base;ok=true;break}
+      const p=await backupCall({op:'put',id:k.id,rev:r.rev,data:await seal(k,{...m,joins:[]})});
+      if(p.status===200){st.rev=p.rev;st.base=base;ok=true;break}
+      if(p.status!==409)throw new Error('server '+p.status);
+      // un altro membro ha salvato nel frattempo: riparto dalla sua versione
+      r=p.data!==undefined?{status:200,rev:p.rev,data:p.data}:await backupCall({op:'get',id:k.id});
+    }
+    if(!ok)throw new Error('conflitto');
+    st.last=Date.now();st.err=null;
+  }catch(e){st.err=String(e.message||e);console.warn('Board condivisa non sincronizzata',e)}
+  // se nel frattempo sei uscito dalla board, il suo stato non torna
+  if(isShared(j.id))SHARES[j.id]=st;
+}
+async function syncShares(){
+  if(!PUSH_URL||!(S.joins||[]).length)return;if(sharesBusy){sharesAgain=true;return}
+  sharesBusy=true;
+  try{for(const j of [...S.joins])await syncShare(j)}
+  finally{sharesBusy=false;sharesKeep();const sh=document.getElementById('shr');if(sh)openShare(sh.dataset.board);if(sharesAgain){sharesAgain=false;syncShares()}}
+}
+const shareLink=code=>location.origin+location.pathname+'#share='+code;
+/* rende condivisa una board personale: board e card diventano copie con id nuovi nel documento condiviso */
+async function shareBoard(bid){
+  const b=board(bid);if(!b||isShared(bid))return;
+  const code=newSyncCode(),nb=cloneAs(b,'b'+uid());
+  const cards=S.cards.filter(c=>c.boardId===bid).map(c=>({...cloneAs(c,uid()),boardId:nb.id}));
+  S.boards=S.boards.map(x=>x===b?nb:x);S.cards=[...S.cards.filter(c=>c.boardId!==bid),...cards];
+  S.joins=[...(S.joins||[]),{id:nb.id,code}];SHARES[nb.id]={rev:0};S.board=nb.id;
+  save();render();openShare(nb.id);await syncShares();
+}
+async function joinShare(code){
+  const k=await syncKeys(code,'share'),r=await backupCall({op:'get',id:k.id});
+  if(r.status!==200)throw new Error('Server non raggiungibile, riprova.');
+  if(!r.data)throw new Error('Nessuna board condivisa con questo codice.');
+  const doc=await unseal(k,r.data),b=(doc.boards||[])[0];if(!b)throw new Error('La board condivisa è vuota o rovinata.');
+  if(!isShared(b.id)){
+    // rientro dopo essere uscito: la vecchia traccia non deve bloccare l'iscrizione nuova
+    delete S.tomb['j'+b.id];
+    S.joins=[...(S.joins||[]),{id:b.id,code}];SHARES[b.id]={rev:0};save();
+    await syncShares();
+  }
+  if(board(b.id)){S.board=b.id;goView('board')}
+  return board(b.id);
+}
+/* esci: board e card spariscono da qui e dagli altri tuoi dispositivi; per gli altri membri resta tutto */
+function leaveShare(bid){
+  const keys=['b'+bid,...S.cards.filter(c=>c.boardId===bid).map(c=>'c'+c.id)];
+  // tolte dalla fotografia: così non lasciano tracce di eliminazione che finirebbero agli altri
+  if(syncSnap)keys.forEach(k=>delete syncSnap[k]);
+  S.cards=S.cards.filter(c=>c.boardId!==bid);S.boards=S.boards.filter(b=>b.id!==bid);S.joins=S.joins.filter(j=>j.id!==bid);
+  delete SHARES[bid];sharesKeep();
+  if(!S.boards.length)S.boards=sample().boards;if(!board(S.board))S.board=S.boards[0].id;
+  save();
+}
+
 /* ---------- ricerca: titolo, note, etichette, checklist e board, senza badare ad accenti e maiuscole ---------- */
 const fold=x=>String(x||'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
 function searchHits(q){
@@ -253,7 +355,9 @@ function openBoardEdit(){
      <span style="display:flex;gap:4px"><button type="button" class="btn" data-blm="${l.id}" data-dir="-1" ${i?'':'disabled'} aria-label="Sposta a sinistra">‹</button><button type="button" class="btn" data-blm="${l.id}" data-dir="1" ${i<b.lists.length-1?'':'disabled'} aria-label="Sposta a destra">›</button></span>
      ${l.done||open<2&&!l.done?'<span></span>':`<button type="button" class="btn ghost danger" data-blx="${l.id}">${arm(l.id,'×')}</button>`}</div>`).join('')}</div>
     <span class="note">${bdArm&&bdArm!=='board'?'Le card della colonna passano nella prima colonna rimasta. Tocca di nuovo per confermare.':'La colonna delle completate non si elimina: serve a segnare le card come fatte.'}</span></div>
-   ${S.boards.length>1?`<div class="f"><button type="button" class="btn danger" data-bdx>${bdArm==='board'?'Conferma: elimina la board':'Elimina board'}</button><span class="note">Le sue card non vanno perse: finiscono nell'Inbox.</span></div>`:''}
+   ${isShared(b.id)?`<div class="f"><button type="button" class="btn" data-share-open>${I.users} Condivisione e link</button></div>`
+    :`<div class="f"><button type="button" class="btn" data-share-ask>${I.users} Condividi questa board…</button></div>`}
+   ${isShared(b.id)?'':S.boards.length>1?`<div class="f"><button type="button" class="btn danger" data-bdx>${bdArm==='board'?'Conferma: elimina la board':'Elimina board'}</button><span class="note">Le sue card non vanno perse: finiscono nell'Inbox.</span></div>`:''}
    <div class="actions"><span></span><button type="button" class="btn primary" id="bdm-close">Fatto</button></div></div></div>`;
   modalOpened();
 }
@@ -267,11 +371,58 @@ function boardAct(t){
     b.lists=b.lists.filter(l=>l.id!==id);const to=b.lists.find(l=>!l.done)||b.lists[0];S.cards.forEach(c=>{if(c.listId===id)c.listId=to.id});
     save();render();openBoardEdit();
     toast('Colonna eliminata',()=>{if(!b.lists.some(l=>l.id===id)){b.lists=[...b.lists];b.lists.splice(li,0,JSON.parse(lj))}undo();if(document.getElementById('bdm'))openBoardEdit()});return}
+  if(t.closest('[data-share-open]')){bdArm=null;shArm=false;return openShare(b.id)}
+  if(t.closest('[data-share-ask]')){bdArm=null;return openShareAsk(b.id)}
   if(t.closest('[data-bdx]')){if(bdArm!=='board'){bdArm='board';return openBoardEdit()}
     bdArm=null;const bi=S.boards.indexOf(b),bj=JSON.stringify(b),undo=undoFor(S.cards.filter(c=>c.boardId===b.id).map(c=>c.id));
     S.cards.forEach(c=>{if(c.boardId===b.id){c.boardId=null;c.listId=null;delete c.archived}});
     S.boards=S.boards.filter(x=>x!==b);S.board=S.boards[0].id;closeEditor();save();render();
     toast('Board "'+b.name+'" eliminata: le card sono nell’Inbox',()=>{if(!board(b.id)){S.boards.splice(Math.min(bi,S.boards.length),0,JSON.parse(bj));S.board=b.id}undo()});return}
+}
+
+/* ---------- board condivise: conferma, link e QR, entra con un codice ---------- */
+var shArm=false;
+function openShareAsk(bid){
+  const b=board(bid);if(!b)return;
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="sha" data-board="${b.id}" role="dialog" aria-label="Condividi board"><h3>Condividere "${esc(b.name)}"?</h3>
+   <p class="note">Chi riceve il link vede questa board e tutte le sue card, e può aggiungere, modificare, spostare ed eliminare. Le card con una data compaiono nel suo calendario e i promemoria arrivano a tutti.</p>
+   <p class="note">Non si può togliere l'accesso a una sola persona: per farlo si crea una board nuova e si manda il link solo a chi deve restare.</p>
+   <div class="actions"><span></span><div style="display:flex;gap:8px"><button type="button" class="btn" id="e-cancel">Annulla</button><button type="button" class="btn primary" data-sh="go">Condividi</button></div></div></div></div>`;
+  modalOpened();
+}
+function openShare(bid){
+  const b=board(bid),j=(S.joins||[]).find(x=>x.id===bid);if(!b||!j)return closeEditor();
+  const st=SHARES[bid]||{},link=shareLink(j.code);
+  let qr='';try{const q=qrcode(0,'M');q.addData(link);q.make();qr=q.createSvgTag({cellSize:4,margin:2,scalable:true})}catch(e){}
+  const status=st.err?"⚠️ Ultimo aggiornamento non riuscito ("+esc(st.err)+"). Riprovo da solo appena c'è rete."
+    :st.last?'Aggiornata alle '+new Date(st.last).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+'.':'Primo salvataggio in corso…';
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="shr" data-board="${b.id}" role="dialog" aria-label="Board condivisa"><h3>${esc(b.name)}</h3>
+   <p class="note">Board condivisa. Chi ha il link la vede e la modifica. ${status}</p>
+   ${qr?`<div class="qr" aria-label="Codice QR del link">${qr}</div><span class="note" style="text-align:center">Fai inquadrare il QR con la fotocamera, oppure manda il link.</span>`:''}
+   <div class="f"><span class="flab">Codice</span><div class="bkcode">${fmtCode(j.code)}</div></div>
+   <div class="bkrow">${navigator.share?'<button type="button" class="btn primary" data-sh="send">Invia link</button>':''}<button type="button" class="btn" data-sh="copy">Copia link</button></div>
+   <div class="f"><button type="button" class="btn ghost danger" data-sh="leave">${shArm?'Conferma: esci dalla board':'Esci dalla board'}</button>
+    <span class="note">${shArm?'La board sparisce da questo dispositivo e dagli altri tuoi. Per gli altri membri resta tutto. Puoi rientrare con lo stesso link.':'Uscendo, la board resta agli altri membri.'}</span></div>
+   <div class="actions"><span></span><button type="button" class="btn primary" id="e-cancel">Chiudi</button></div></div></div>`;
+  modalOpened();
+}
+function openJoin(msg){
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="shj" role="dialog" aria-label="Entra in una board condivisa"><h3>Entra in una board condivisa</h3>
+   <p class="note">Apri il link che ti hanno mandato, inquadra il loro QR con la fotocamera, oppure scrivi qui il codice.</p>
+   <div class="f"><label for="sh-code">Codice della board</label><div class="add"><input id="sh-code" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn primary" type="button" data-sh="join">Entra</button></div>
+    ${msg?`<span class="note" style="color:var(--l-red)">${esc(msg)}</span>`:''}</div>
+   <div class="actions"><span></span><button type="button" class="btn" id="e-cancel">Chiudi</button></div></div></div>`;
+  modalOpened();setTimeout(()=>document.getElementById('sh-code')?.focus(),0);
+}
+async function shareAct(t){
+  const a=t.closest('[data-sh]');if(!a)return;const v=a.dataset.sh,sheet=document.querySelector('#shr,#sha'),bid=sheet&&sheet.dataset.board;
+  if(v==='go'){closeEditor();return shareBoard(bid)}
+  if(v==='join'){const c=normCode(document.getElementById('sh-code').value);if(!c)return openJoin('Il codice ha 20 caratteri, lettere e numeri.');
+    a.disabled=true;try{const b=await joinShare(c);closeEditor();if(b)toast('Sei nella board condivisa "'+b.name+'"')}catch(e){openJoin(e.message)}return}
+  const j=(S.joins||[]).find(x=>x.id===bid);if(!j)return;const link=shareLink(j.code);
+  if(v==='send'){try{await navigator.share({title:'MyTask: '+board(bid).name,text:'Entra nella board "'+board(bid).name+'" su MyTask',url:link})}catch(e){}return}
+  if(v==='copy'){try{await navigator.clipboard.writeText(link);toast('Link copiato')}catch(e){prompt('Copia da qui:',link)}return}
+  if(v==='leave'){if(!shArm){shArm=true;return openShare(bid)}shArm=false;const n=board(bid).name;closeEditor();leaveShare(bid);render();toast('Sei uscito dalla board "'+n+'"')}
 }
 
 /* ---------- svuota colonna: conferma in un pop-up ---------- */
@@ -346,7 +497,7 @@ function digestReminders(){
    e per le card presenti in entrambi vale la modifica più recente, campo per campo */
 function openData(msg,err){
   document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="dt" role="dialog" aria-label="Esporta / importa"><h3>Esporta / importa</h3>
-   <div class="f"><span class="flab">Esporta</span><span class="note">Scarica un file con tutte le card, le board e le etichette. Il file non è cifrato: chi lo apre legge i tuoi task.</span>
+   <div class="f"><span class="flab">Esporta</span><span class="note">Scarica un file con le tue card, board ed etichette. Il file non è cifrato: chi lo apre legge i tuoi task. Le board condivise non sono nel file: restano sul server e le ritrovi con il loro link.</span>
     <div class="bkrow"><button type="button" class="btn primary" data-dt="export">Esporta file</button></div></div>
    <div class="f"><span class="flab">Importa</span><span class="note">Carica un file esportato da MyTask. Si unisce ai task di questo dispositivo: non cancella niente.</span>
     <div class="bkrow"><button type="button" class="btn" data-dt="import">Scegli file…</button><input type="file" id="dt-file" accept=".json,application/json" hidden></div>
@@ -355,7 +506,7 @@ function openData(msg,err){
   modalOpened();
 }
 function exportFile(){
-  const blob=new Blob([JSON.stringify(exportDoc(S,Date.now()),null,1)],{type:'application/json'}),a=document.createElement('a');
+  const blob=new Blob([JSON.stringify(exportDoc(personalDoc(),Date.now()),null,1)],{type:'application/json'}),a=document.createElement('a');
   a.href=URL.createObjectURL(blob);a.download='mytask-'+todayIso()+'.json';document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
   toast('File salvato nei download');
@@ -532,7 +683,7 @@ function vCal(){
 
 function vBoard(){
   const b=board(S.board)||S.boards[0];S.board=b.id;
-  const tabs=S.boards.map(x=>`<button type="button" class="tab" data-board="${x.id}" aria-pressed="${x.id===b.id}" style="--c:${labCss(x.c)}"><i></i>${esc(x.name)}</button>`).join('')+`<button type="button" class="tab" id="newBoard">+ Nuova board</button>`;
+  const tabs=S.boards.map(x=>`<button type="button" class="tab" data-board="${x.id}" aria-pressed="${x.id===b.id}" style="--c:${labCss(x.c)}"><i></i>${esc(x.name)}${isShared(x.id)?`<span class="tab-sh" title="Board condivisa">${I.users}</span>`:''}</button>`).join('')+`<button type="button" class="tab" id="newBoard">+ Nuova board</button><button type="button" class="tab" id="joinBoard">Entra con un codice</button>`;
   const cols=b.lists.map(l=>{
     const cs=S.cards.filter(c=>c.listId===l.id);
     const clear=l.done&&cs.length?`<button type="button" class="btn ghost danger clear-done" data-clear="${l.id}">Svuota</button>`:'';
@@ -690,6 +841,7 @@ document.getElementById('modal').addEventListener('click',e=>{
   if(t.id==='clr-ok'){const id=document.getElementById('clr').dataset.list;closeEditor();return doClear(id)}
   if(document.getElementById('lbm'))return labelsAct(t);
   if(document.getElementById('bdm'))return boardAct(t);
+  if(document.getElementById('shr')||document.getElementById('sha')||document.getElementById('shj'))return shareAct(t);
   const sr=t.closest('[data-sr]');if(sr)return openEditor(sr.dataset.sr);
   const sz=t.closest('[data-snz]');if(sz)return snoozeAct(sz.dataset.snz);
   const tp=t.closest('[data-theme-pick]');if(tp){const v=tp.dataset.themePick;setTheme(v==='classic'?null:v);openThemes();return render()}
@@ -740,6 +892,7 @@ document.getElementById('modal').addEventListener('change',e=>{
 });
 document.getElementById('modal').addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.id==='lab-new'){e.preventDefault();document.getElementById('lab-new-ok').click();return}
+  if(e.key==='Enter'&&e.target.id==='sh-code'){e.preventDefault();document.querySelector('[data-sh="join"]').click();return}
   if(e.key==='Enter'&&e.target.id==='lbm-new'){e.preventDefault();document.getElementById('lbm-add').click();return}
   if(e.key==='Escape'){if(document.getElementById('lbm'))return closeLabels();if(subOf)return openSettings();return tryCloseEditor()}
   if(e.key==='Enter'&&e.target.id==='cl-new'){e.preventDefault();document.getElementById('cl-add').click()}
@@ -756,14 +909,17 @@ document.getElementById('modal').addEventListener('submit',e=>{
   if(draft.recur==='monthly'&&draft.date){const o=draft.id&&card(draft.id);if(!draft.mday||!o||o.date!==draft.date)draft.mday=+draft.date.slice(8,10)}else delete draft.mday;
   const clean=cleanDraft();
   // sostituisco la card invece di copiarci sopra i campi: così anche i campi tolti (priorità, giorno del mese...) spariscono davvero
-  if(clean.id){const i=S.cards.findIndex(c=>c.id===clean.id),o=S.cards[i];if(o.date!==clean.date||o.time!==clean.time||o.reminder!==clean.reminder)clean.notified=false;S.cards[i]=clean}
+  if(clean.id){const i=S.cards.findIndex(c=>c.id===clean.id),o=S.cards[i];if(o.date!==clean.date||o.time!==clean.time||o.reminder!==clean.reminder)clean.notified=false;
+    // cambia documento (personale ↔ condivisa, o tra due condivise): copia con id nuovo, l'originale viene eliminato
+    const dom=c=>isShared(c.boardId)?c.boardId:'';
+    if(dom(o)!==dom(clean)){S.cards.splice(i,1);S.cards.push(cloneAs(clean,uid()))}else S.cards[i]=clean}
   else S.cards.push({...clean,id:uid(),notified:false,snooze:null});
   save();closeEditor();render();toast('Salvata');
 });
 
 /* ---------- interazioni ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-settings],[data-search],[data-board-edit],[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#fab');
+  const t=e.target.closest('[data-settings],[data-search],[data-board-edit],[data-view],[data-toggle],[data-open],[data-board],[data-mon],[data-day],[data-new-date],[data-clear],#newBoard,#joinBoard,#fab');
   if(!t||t.closest('#modal')||t.closest('#notifs'))return;
   if(t.dataset.clear)return openClear(t.dataset.clear);
   if(t.dataset.toggle){e.stopPropagation();return toggleDone(card(t.dataset.toggle))}
@@ -776,6 +932,7 @@ document.addEventListener('click',e=>{
   if(t.id==='fab'){const p={};if(S.view==='board'){const b=board(S.board);p.boardId=b.id;p.listId=b.lists[0].id}if(S.view==='calendario')p.date=S.sel;if(S.view==='oggi')p.date=todayIso();return openEditor(null,p)}
   if(t.id==='newBoard'){const n=S.boards.length;const cs=['--l-amber','--l-red','--l-blue','--l-green','--l-violet'];const id='b'+uid();S.boards.push({id,name:'Board '+(n+1),c:cs[n%cs.length],lists:[{id:uid(),name:'Da fare'},{id:uid(),name:'Fatto',done:true}]});S.board=id;save();render();bdArm=null;return openBoardEdit()}
   if(t.hasAttribute('data-board-edit')){bdArm=null;return openBoardEdit()}
+  if(t.id==='joinBoard')return openJoin();
   if(t.hasAttribute('data-search'))return openSearch();
   if(t.hasAttribute('data-settings'))return openSettings();
 });
@@ -1029,7 +1186,10 @@ render();setInterval(checkReminders,15000);setTimeout(checkReminders,1500);
 /* link "#sync=CODICE" aperto su un altro dispositivo: collega il backup */
 (()=>{const m=location.hash.match(/^#sync=([A-Za-z0-9-]+)/);if(!m)return;history.replaceState(null,'',location.pathname+location.search);const c=normCode(m[1]);
   if(c&&(!SYNC||SYNC.code!==c))linkCode(c).then(()=>toast('Backup collegato: i task sono sincronizzati')).catch(e=>toast(e.message))})();
-syncUI();setTimeout(syncNow,800);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow();else if(syncTO)syncNow()});
+/* link "#share=CODICE": entra nella board condivisa */
+(()=>{const m=location.hash.match(/^#share=([A-Za-z0-9-]+)/);if(!m)return;history.replaceState(null,'',location.pathname+location.search);const c=normCode(m[1]);
+  if(c)joinShare(c).then(b=>{if(b)toast('Sei nella board condivisa "'+b.name+'"')}).catch(e=>toast(e.message));else toast('Il link della board non è valido.')})();
+syncUI();setTimeout(syncAll,800);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncAll();else if(syncTO)syncAll()});
 // controllo periodico ogni 5 minuti: le modifiche partono già subito dopo il salvataggio e all'apertura
-setInterval(()=>{if(document.visibilityState==='visible')syncNow()},300000);
+setInterval(()=>{if(document.visibilityState==='visible')syncAll()},300000);

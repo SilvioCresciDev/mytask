@@ -1,8 +1,8 @@
 // MyTask service worker: funziona offline e gestisce i pulsanti delle notifiche
 // i file si aggiornano da soli a ogni apertura online (prima la rete): il nome della cache va cambiato
 // solo quando cambia l'elenco FILES, e il test tests/sw.test.js controlla che l'elenco sia completo
-const CACHE='mytask-v33',QUEUE='mytask-actions';
-const FILES=['./','index.html','app.css','theme.js','logic.js','app.js','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png',
+const CACHE='mytask-v34',QUEUE='mytask-actions';
+const FILES=['./','index.html','app.css','theme.js','vendor/qrcode.js','logic.js','app.js','manifest.webmanifest','icon-192.png','icon-512.png','badge-96.png',
   'fonts/atkinson-400.woff2','fonts/atkinson-700.woff2','fonts/bricolage.woff2','fonts/fredoka.woff2','fonts/jetbrains-mono-500.woff2'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>Promise.all(FILES.map(f=>fetch(f,{cache:'no-store'}).then(r=>c.put(f,r))))).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE&&x!==QUEUE).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});

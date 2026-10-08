@@ -211,3 +211,30 @@ test('importa: rifiuta file sbagliati e ripulisce i campi', () => {
   assert.deepEqual([c.date, c.time, c.recur, c.labels, c.notes, c.done], [null, null, 'none', ['x'], '', false]);
   assert.deepEqual(d.labels, []);
 });
+
+test('routeTomb: al documento condiviso vanno solo le eliminazioni dei suoi oggetti', () => {
+  const remote = { cards: [{ id: 'x' }], boards: [{ id: 'B' }], labels: [] };
+  assert.deepEqual(L.routeTomb({ cx: 5, cy: 6, bB: 7, jB: 8 }, remote), { cx: 5, bB: 7 });
+  assert.deepEqual(L.routeTomb({ cx: 5 }, null), {});
+});
+
+test('cloneAs: copia con id nuovo e senza istanti', () => {
+  const o = { id: 'a', title: 'T', labels: ['x'], upd: 5, c0: 1, fu: { title: 5 } };
+  const c = L.cloneAs(o, 'b');
+  assert.deepEqual(c, { id: 'b', title: 'T', labels: ['x'] });
+  c.labels.push('y');
+  assert.deepEqual(o.labels, ['x']);
+});
+
+test('mergeDoc unisce anche le iscrizioni alle board condivise (joins)', () => {
+  const m = L.mergeDoc({ cards: [], boards: [], labels: [], joins: [{ id: 'B1', code: 'A', upd: 1 }] }, { joins: [{ id: 'B2', code: 'B', upd: 1 }], tomb: { jB1: 5 } });
+  assert.deepEqual(m.joins.map(j => j.id), ['B2']);
+  assert.ok(L.sameDoc({ joins: [{ id: 'a' }] }, { joins: [{ id: 'a' }] }));
+  assert.ok(!L.sameDoc({ joins: [{ id: 'a' }] }, { joins: [] }));
+});
+
+test('migrate porta i dati alla versione 4 con le iscrizioni vuote', () => {
+  const S = L.migrate({ v: 3, boards: [], cards: [], labels: [] });
+  assert.deepEqual(S.joins, []);
+  assert.equal(S.v, 4);
+});

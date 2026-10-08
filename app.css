@@ -375,3 +375,8 @@ h2.late{color:var(--late)}
 .theme .tp span{position:absolute;right:10px;top:10px}
 .theme .tn{padding:8px 10px;font-weight:700;font-size:14px}
 .theme .td{font-weight:400;font-size:12px;color:var(--muted);display:block}
+/* board condivise */
+.tab-sh{display:inline-flex;color:var(--muted)}.tab-sh svg{width:14px;height:14px}
+[data-share-open] svg,[data-share-ask] svg{width:16px;height:16px;vertical-align:-3px;margin-right:4px}
+.qr{display:grid;place-items:center;padding:12px;background:#fff;border-radius:12px;align-self:center}
+.qr svg{width:min(220px,60vw);height:auto;display:block}

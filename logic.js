@@ -79,6 +79,9 @@ function mergeItem(a,b){
 /* L = dati locali, R = backup sul server. base = orologio locale all'ultima unione riuscita:
    un oggetto locale che allora c'era (upd <= base) e che ora manca sul server è stato eliminato altrove,
    anche se la traccia dell'eliminazione è già stata ripulita */
+/* le raccolte di un documento e la lettera che precede l'id nelle tracce delle eliminazioni.
+   joins = board condivise a cui partecipi (id della board + codice), viaggia solo nel backup personale */
+const COLS={cards:'c',boards:'b',labels:'l',joins:'j'};
 function mergeDoc(L,R,base){
   const tomb={...(R.tomb||{})};for(const k in L.tomb||{})tomb[k]=Math.max(tomb[k]||0,L.tomb[k]);
   const pick=(p,la,ra)=>{
@@ -88,12 +91,13 @@ function mergeDoc(L,R,base){
       if(keep(l)&&!(base&&(l.upd||0)<=base))out.push(l)});
     ra.forEach(r=>{if(!lm.has(r.id)&&keep(r))out.push(r)});
     return out};
-  return {cards:pick('c',L.cards,R.cards||[]),boards:pick('b',L.boards,R.boards||[]),labels:pick('l',L.labels||[],R.labels||[]),tomb};
+  const out={tomb};for(const k in COLS)out[k]=pick(COLS[k],L[k]||[],R[k]||[]);
+  return out;
 }
 /* istante più recente presente nei dati: l'orologio logico non deve mai scendere sotto */
 function maxStamp(doc){
   let m=0;const see=x=>{if(x.upd>m)m=x.upd;if(x.fu)for(const k in x.fu)if(x.fu[k]>m)m=x.fu[k]};
-  (doc.cards||[]).forEach(see);(doc.boards||[]).forEach(see);(doc.labels||[]).forEach(see);
+  for(const k in COLS)(doc[k]||[]).forEach(see);
   for(const k in doc.tomb||{})if(doc.tomb[k]>m)m=doc.tomb[k];
   return m;
 }
@@ -107,9 +111,23 @@ function canon(x){
 /* stesso contenuto, senza badare all'ordine delle card (l'ordine non ha un istante e non giustifica un salvataggio) */
 function sameDoc(a,b){
   const byId=l=>[...(l||[])].sort((x,y)=>x.id<y.id?-1:x.id>y.id?1:0);
-  const c=d=>canon({cards:byId(d.cards),boards:byId(d.boards),labels:byId(d.labels),tomb:d.tomb||{}});
+  const c=d=>{const o={tomb:d.tomb||{}};for(const k in COLS)o[k]=byId(d[k]);return canon(o)};
   return c(a)===c(b);
 }
+
+/* ---------- board condivise ----------
+   Ogni board condivisa ha un suo documento cifrato sul server, con la board, le sue card e le etichette usate.
+   Un id appartiene sempre a un solo documento: spostare una card dentro o fuori una board condivisa
+   crea una copia con un id nuovo ed elimina l'originale, così le eliminazioni non si confondono tra documenti */
+/* delle eliminazioni locali vanno nel documento condiviso solo quelle di oggetti che il documento contiene */
+function routeTomb(tomb,remote){
+  const keys=new Set(),out={};
+  if(remote)for(const k in COLS)(remote[k]||[]).forEach(x=>keys.add(COLS[k]+x.id));
+  for(const k in tomb||{})if(keys.has(k))out[k]=tomb[k];
+  return out;
+}
+/* copia di un oggetto con un id nuovo e senza istanti: per l'altro documento è un oggetto appena creato */
+function cloneAs(x,id){const o={...JSON.parse(JSON.stringify(x)),id};delete o.upd;delete o.c0;delete o.fu;return o}
 
 /* ---------- promemoria per il server ----------
    Si mandano i più vicini fino a max. Se la lista è tagliata, l'ultimo posto va a un avviso
@@ -123,7 +141,7 @@ function capReminders(list,max){
 
 /* ---------- migrazioni dei dati salvati ----------
    S.v è la versione dello schema; ogni passo porta i dati dalla versione precedente alla successiva */
-const SCHEMA=3;
+const SCHEMA=4;
 function migrate(S){
   if(!Array.isArray(S.labels))S.labels=null;
   const v=S.v||1;
@@ -134,6 +152,10 @@ function migrate(S){
   if(v<3){
     // "ogni mese" ricorda il giorno di partenza
     S.cards.forEach(c=>{if(c.recur==='monthly'&&c.date&&!c.mday)c.mday=+c.date.slice(8,10)});
+  }
+  if(v<4){
+    // board condivise a cui partecipi
+    if(!Array.isArray(S.joins))S.joins=[];
   }
   S.v=SCHEMA;
   return S;
@@ -184,4 +206,4 @@ function parseExport(text){
   return {cards,boards,labels};
 }
 
-if(typeof module!=='undefined')module.exports={pad,iso,addDays,todayIso,daysInMonth,esc,STEP,nextDate,occ,nextAfterDone,safeColor,labCss,fieldsOf,stampItem,mergeItem,mergeDoc,maxStamp,TOMB_KEEP_DAYS,canon,sameDoc,capReminders,SCHEMA,migrate,repair,exportDoc,parseExport};
+if(typeof module!=='undefined')module.exports={pad,iso,addDays,todayIso,daysInMonth,esc,STEP,nextDate,occ,nextAfterDone,safeColor,labCss,fieldsOf,stampItem,mergeItem,mergeDoc,COLS,routeTomb,cloneAs,maxStamp,TOMB_KEEP_DAYS,canon,sameDoc,capReminders,SCHEMA,migrate,repair,exportDoc,parseExport};
