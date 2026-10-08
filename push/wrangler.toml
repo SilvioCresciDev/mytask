@@ -12,6 +12,14 @@ VAPID_PUBLIC_KEY = "BD0-rc6SqlVCzJofoCmBhLqdqDyt2BZ6Y3lKDxBt2C1JQ5Qvcmz1HCwNKU6L
 VAPID_SUBJECT = "https://silviocrescidev.github.io/mytask/"
 # VAPID_PRIVATE_JWK è un secret: npx wrangler secret put VAPID_PRIVATE_JWK
 
+# limite per indirizzo IP su /sync e /backup: 60 richieste al minuto bastano a un uso normale
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
 [[d1_databases]]
 binding = "DB"
 database_name = "mytask-push"

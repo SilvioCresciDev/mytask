@@ -2,10 +2,19 @@
 // Un dispositivo = una riga in D1 con la sua iscrizione push e la lista dei promemoria futuri.
 
 const ALLOWED_ORIGINS = ['https://silviocrescidev.github.io', 'http://localhost:8000'];
-const MAX_BODY = 64 * 1024;
+const MAX_BODY = 128 * 1024;
 const MAX_BACKUP = 1900 * 1024; // sotto il limite di 2 MB per riga di D1
 const MAX_REMINDERS = 300;
 const LATE_LIMIT = 3600e3; // un promemoria in ritardo di oltre un'ora non viene più inviato
+// tetti contro chi riempie il database con richieste finte: oltre questi numeri si rifiutano solo le righe nuove
+const MAX_DEVICES = 5000;
+const MAX_BACKUPS = 5000;
+// pulizia: la lista dei promemoria arriva al massimo a un anno, quindi un dispositivo che non si fa sentire da 400 giorni
+// non ha più niente da ricevere; lo stesso vale per un backup mai letto né scritto da 400 giorni
+const DEVICE_TTL = 400 * 864e5;
+const BACKUP_TTL = 400 * 864e5;
+// solo i servizi push dei browser: il Worker non deve diventare un modo per mandare richieste a indirizzi qualsiasi
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /^[a-z0-9.-]+\.notify\.windows\.com$/, /^web\.push\.apple\.com$/, /^[a-z0-9.-]+\.push\.apple\.com$/];
 
 export default {
   async fetch(req, env) {
@@ -20,8 +29,12 @@ export default {
     const url = new URL(req.url);
     const reply = (status, body) => new Response(body ? JSON.stringify(body) : null, { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-    if (req.method === 'POST' && url.pathname === '/sync') {
+    if (req.method === 'POST' && (url.pathname === '/sync' || url.pathname === '/backup')) {
       if (!ALLOWED_ORIGINS.includes(origin)) return reply(403, { error: 'origin' });
+      // l'Origin si può falsificare fuori dal browser: il limite per indirizzo IP frena gli abusi
+      if (!(await allowed(env, req))) return reply(429, { error: 'slow down' });
+    }
+    if (req.method === 'POST' && url.pathname === '/sync') {
       const text = await req.text();
       if (text.length > MAX_BODY) return reply(413, { error: 'too large' });
       let d;
@@ -32,10 +45,11 @@ export default {
         return reply(200, { ok: true });
       }
       const s = d.sub || {};
-      if (typeof s.endpoint !== 'string' || !s.endpoint.startsWith('https://') || !s.keys || typeof s.keys.p256dh !== 'string' || typeof s.keys.auth !== 'string') return reply(400, { error: 'sub' });
+      if (!validEndpoint(s.endpoint) || !s.keys || typeof s.keys.p256dh !== 'string' || typeof s.keys.auth !== 'string') return reply(400, { error: 'sub' });
       const rem = (Array.isArray(d.reminders) ? d.reminders : []).slice(0, MAX_REMINDERS)
         .filter(r => r && typeof r.id === 'string' && Number.isFinite(r.at))
         .map(r => ({ id: r.id.slice(0, 64), at: Math.round(r.at), title: String(r.title || '').slice(0, 200), body: String(r.body || '').slice(0, 300) }));
+      if (!(await hasRoom(env, 'devices', 'device', d.device, MAX_DEVICES))) return reply(507, { error: 'full' });
       // next_due ignora i promemoria già inviati: se è uno di quelli, il cron lo scopre e ricalcola
       await env.DB.prepare(
         `INSERT INTO devices(device,endpoint,p256dh,auth,reminders,sent,updated,next_due) VALUES(?,?,?,?,?,'[]',?,?)
@@ -45,15 +59,18 @@ export default {
     }
     // backup: il server conserva solo dati già cifrati dall'app; rev evita di sovrascrivere modifiche di un altro dispositivo
     if (req.method === 'POST' && url.pathname === '/backup') {
-      if (!ALLOWED_ORIGINS.includes(origin)) return reply(403, { error: 'origin' });
       const text = await req.text();
       if (text.length > MAX_BACKUP) return reply(413, { error: 'too large' });
       let d;
       try { d = JSON.parse(text) } catch { return reply(400, { error: 'json' }) }
       if (typeof d.id !== 'string' || !/^[0-9a-f]{64}$/.test(d.id)) return reply(400, { error: 'id' });
       const row = await env.DB.prepare('SELECT rev,data FROM backups WHERE id=?').bind(d.id).first();
-      if (d.op === 'get') return reply(200, row ? { rev: row.rev, data: row.data } : { rev: 0, data: null });
+      if (d.op === 'get') {
+        if (row) await touchBackup(env, d.id);
+        return reply(200, row ? { rev: row.rev, data: row.data } : { rev: 0, data: null });
+      }
       if (d.op !== 'put' || typeof d.data !== 'string' || !Number.isInteger(d.rev)) return reply(400, { error: 'op' });
+      if (!row && !(await hasRoom(env, 'backups', 'id', d.id, MAX_BACKUPS))) return reply(507, { error: 'full' });
       const cur = row ? row.rev : 0;
       if (d.rev !== cur) return reply(409, { rev: cur, data: row ? row.data : null });
       const res = row
@@ -68,13 +85,53 @@ export default {
 
   async scheduled(event, env, ctx) {
     ctx.waitUntil(sendDue(env));
+    // una volta al giorno, alle 3:17 UTC
+    const t = new Date(event.scheduledTime);
+    if (t.getUTCHours() === 3 && t.getUTCMinutes() === 17) ctx.waitUntil(cleanup(env, t.getTime()));
   },
 };
 
-const validDevice = d => typeof d === 'string' && /^[A-Za-z0-9-]{20,64}$/.test(d);
+export function validEndpoint(e) {
+  if (typeof e !== 'string' || e.length > 1000) return false;
+  let u;
+  try { u = new URL(e) } catch { return false }
+  return u.protocol === 'https:' && !u.port && !u.username && PUSH_HOSTS.some(r => r.test(u.hostname));
+}
+
+// limite per IP con il Rate Limiting di Cloudflare (binding LIMITER in wrangler.toml); senza binding non limita
+async function allowed(env, req) {
+  if (!env.LIMITER) return true;
+  try {
+    const { success } = await env.LIMITER.limit({ key: req.headers.get('CF-Connecting-IP') || 'unknown' });
+    return success;
+  } catch { return true }
+}
+
+// una riga già esistente si aggiorna sempre; una nuova solo se la tabella non è piena
+async function hasRoom(env, table, col, id, max) {
+  const exists = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE ${col}=?`).bind(id).first();
+  if (exists) return true;
+  const { n } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first();
+  return n < max;
+}
+
+// segna che il backup è ancora in uso (al massimo una scrittura al giorno); senza la colonna seen non fa niente
+async function touchBackup(env, id) {
+  const now = Date.now();
+  try { await env.DB.prepare('UPDATE backups SET seen=? WHERE id=? AND (seen IS NULL OR seen<?)').bind(now, id, now - 864e5).run() } catch {}
+}
+
+async function cleanup(env, now) {
+  const dev = await env.DB.prepare('DELETE FROM devices WHERE updated < ?').bind(now - DEVICE_TTL).run();
+  let bk = { meta: { changes: 0 } };
+  try { bk = await env.DB.prepare('DELETE FROM backups WHERE COALESCE(seen, updated) < ?').bind(now - BACKUP_TTL).run() } catch {}
+  console.log('cleanup', dev.meta.changes, 'devices', bk.meta.changes, 'backups');
+}
+
+export const validDevice = d => typeof d === 'string' && /^[A-Za-z0-9-]{20,64}$/.test(d);
 const key = r => r.id + '@' + r.at;
 // istante del prossimo promemoria da inviare (null = nessuno): il cron legge solo i dispositivi con next_due scaduto
-const nextDue = (rem, sent, now) => rem.reduce((m, r) => !sent.has(key(r)) && r.at > now - LATE_LIMIT && (m === null || r.at < m) ? r.at : m, null);
+export const nextDue = (rem, sent, now) => rem.reduce((m, r) => !sent.has(key(r)) && r.at > now - LATE_LIMIT && (m === null || r.at < m) ? r.at : m, null);
 
 async function sendDue(env) {
   const now = Date.now();
