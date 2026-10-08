@@ -13,6 +13,7 @@ MyTask è un'agenda personale che unisce un calendario e delle board in stile ka
 - **Card**: titolo, data e ora, promemoria, etichette, checklist e note.
 - **Ripetizioni**: ogni giorno, ogni 2, 3, 4, 5 o 6 giorni, ogni settimana, ogni mese, oppure date sparse scelte toccando i giorni su un calendario. Quando completi una card che si ripete, passa da sola alla data successiva; se era rimasta indietro di qualche giorno, salta direttamente a oggi. "Ogni mese" dal 31 cade l'ultimo giorno nei mesi più corti e torna al 31 appena può.
 - **Backup e più dispositivi**: dalle Impostazioni attivi un backup cifrato con un codice di 20 caratteri; con lo stesso codice (o il link) colleghi altri dispositivi. Le modifiche si uniscono campo per campo: se cambi il titolo sul telefono e la checklist sul computer restano entrambe.
+- **Esporta / importa**: dalle Impostazioni scarichi un file con tutte le card, board ed etichette, da conservare dove vuoi. Importandolo si unisce ai task presenti senza cancellare niente. Il file non è cifrato.
 - **Promemoria**: notifiche Android con i pulsanti "Fatto" e "Rimanda di 1 ora". Per le card "tutto il giorno" il promemoria fa riferimento alle 9:00.
 
 ## Privacy

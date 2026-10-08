@@ -10,6 +10,7 @@ const I={
  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
  cloud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.6 4.5 4.5 0 0 1 17.5 18.5H7z"/></svg>',
  palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.9 0-.5-.2-.9-.5-1.3-.3-.3-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.3-4-7.7-9-7.7z"/><circle cx="7.5" cy="11.5" r="1.2" fill="currentColor"/><circle cx="10" cy="7.5" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1.2" fill="currentColor"/></svg>',
+ file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3 3 3-3"/></svg>',
  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>'
 };
 // etichette di partenza: l'id coincide col nome, così le card salvate prima delle etichette personalizzate restano valide
@@ -303,7 +304,7 @@ function openSettings(){
   const bTxt=!SYNC?'Non attivo':SYNC.err?'Errore: riprovo appena c\'è rete':'Attivo'+(SYNC.last?' · '+new Date(SYNC.last).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):'');
   const item=(k,ic,n,sub,err)=>`<button type="button" class="set-item" data-set="${k}"><span class="set-ic">${ic}</span><span class="set-tx"><b>${n}</b><span${err?' style="color:var(--l-red)"':''}>${esc(sub)}</span></span><span class="set-go">›</span></button>`;
   document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="set" role="dialog" aria-label="Impostazioni"><h3>Impostazioni</h3>
-   <div class="set-list">${item('notif',I.bell,'Notifiche',nTxt,ns==='denied')}${item('backup',I.cloud,'Backup',bTxt,SYNC&&SYNC.err)}${item('themes',I.palette,'Temi',th)}</div>
+   <div class="set-list">${item('notif',I.bell,'Notifiche',nTxt,ns==='denied')}${item('backup',I.cloud,'Backup',bTxt,SYNC&&SYNC.err)}${item('themes',I.palette,'Temi',th)}${item('data',I.file,'Esporta / importa','Salva i task in un file o caricali da un file')}</div>
    <div class="actions"><span class="note">MyTask</span><button type="button" class="btn primary" id="e-cancel">Chiudi</button></div></div></div>`;
   modalOpened();
 }
@@ -323,7 +324,7 @@ function openNotifs(){
    <div class="actions"><span></span><button type="button" class="btn primary" id="e-cancel">${subOf?'Indietro':'Chiudi'}</button></div></div></div>`;
   modalOpened();setWheel('nt-at',PREFS.digestAt);
 }
-function openSub(k){subOf=true;({notif:openNotifs,backup:()=>openBackup(),themes:openThemes})[k]()}
+function openSub(k){subOf=true;({notif:openNotifs,backup:()=>openBackup(),themes:openThemes,data:()=>openData()})[k]()}
 /* riepilogo: una voce per ciascuno dei prossimi 14 giorni nella lista dei promemoria inviata al server.
    Il testo viene ricalcolato a ogni salvataggio, quindi è aggiornato all'ultima modifica fatta. */
 function digestReminders(){
@@ -340,6 +341,38 @@ function digestReminders(){
   return out;
 }
 
+/* ---------- esporta / importa un file ----------
+   L'importazione unisce il file ai dati presenti (come il backup): non cancella niente,
+   e per le card presenti in entrambi vale la modifica più recente, campo per campo */
+function openData(msg,err){
+  document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="dt" role="dialog" aria-label="Esporta / importa"><h3>Esporta / importa</h3>
+   <div class="f"><span class="flab">Esporta</span><span class="note">Scarica un file con tutte le card, le board e le etichette. Il file non è cifrato: chi lo apre legge i tuoi task.</span>
+    <div class="bkrow"><button type="button" class="btn primary" data-dt="export">Esporta file</button></div></div>
+   <div class="f"><span class="flab">Importa</span><span class="note">Carica un file esportato da MyTask. Si unisce ai task di questo dispositivo: non cancella niente.</span>
+    <div class="bkrow"><button type="button" class="btn" data-dt="import">Scegli file…</button><input type="file" id="dt-file" accept=".json,application/json" hidden></div>
+    ${msg?`<span class="note"${err?' style="color:var(--l-red)"':''} role="status">${esc(msg)}</span>`:''}</div>
+   <div class="actions"><span></span><button type="button" class="btn primary" id="e-cancel">${subOf?'Indietro':'Chiudi'}</button></div></div></div>`;
+  modalOpened();
+}
+function exportFile(){
+  const blob=new Blob([JSON.stringify(exportDoc(S,Date.now()),null,1)],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='mytask-'+todayIso()+'.json';document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
+  toast('File salvato nei download');
+}
+async function importFile(f){
+  if(!f)return;if(f.size>10e6)return openData('Il file è troppo grande.',true);
+  let d;try{d=parseExport(await f.text())}catch(e){return openData(e.message,true)}
+  const was=new Map(S.cards.map(c=>[c.id,canon(fieldsOf(c))]));
+  // senza tracce del file: importare non elimina mai niente; le eliminazioni fatte qui invece restano valide
+  const m=mergeDoc({cards:S.cards,boards:S.boards,labels:S.labels,tomb:S.tomb||{}},{...d,tomb:{}});
+  const added=m.cards.filter(c=>!was.has(c.id)).length,changed=m.cards.filter(c=>was.has(c.id)&&was.get(c.id)!==canon(fieldsOf(c))).length;
+  S.cards=m.cards;S.labels=m.labels;if(m.boards.length)S.boards=m.boards;S.tomb=m.tomb;
+  // save() segna le novità come modifiche di questo dispositivo, così partono anche verso il backup
+  repair(S);save();render();
+  const n=x=>x===1?'1 card':x+' card';
+  openData(added||changed?'Importazione completata: '+[added?n(added)+(added===1?' nuova':' nuove'):'',changed?n(changed)+(changed===1?' aggiornata':' aggiornate'):''].filter(Boolean).join(', ')+'.':'Niente di nuovo: tutto il contenuto del file era già qui.');
+}
 function openBackup(msg){
   const when=SYNC&&SYNC.last?new Date(SYNC.last).toLocaleString('it-IT',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):null;
   const link=SYNC?location.origin+location.pathname+'#sync='+SYNC.code:'';
@@ -653,6 +686,7 @@ document.getElementById('modal').addEventListener('click',e=>{
   const si=t.closest('[data-set]');if(si)return openSub(si.dataset.set);
   if(t.closest('[data-nt="test"]')){const c=S.cards.filter(c=>!c.done&&c.date).sort(byTime).find(c=>c.date>=todayIso())||S.cards.find(c=>!c.done);return c?notify(c):toast('Aggiungi una card per provare')}
   const bk=t.closest('[data-bk]');if(bk)return backupAct(bk.dataset.bk,bk);
+  const dt=t.closest('[data-dt]');if(dt){if(dt.dataset.dt==='export')return exportFile();return document.getElementById('dt-file').click()}
   if(t.id==='clr-ok'){const id=document.getElementById('clr').dataset.list;closeEditor();return doClear(id)}
   if(document.getElementById('lbm'))return labelsAct(t);
   if(document.getElementById('bdm'))return boardAct(t);
@@ -674,6 +708,7 @@ document.getElementById('modal').addEventListener('click',e=>{
   const pr=t.closest('[data-prio]');if(pr){readForm();draft.prio=+pr.dataset.prio||0;if(!draft.prio)delete draft.prio;drawEditor();return}
 });
 document.getElementById('modal').addEventListener('change',e=>{
+  if(e.target.id==='dt-file'){importFile(e.target.files[0]);return}
   if(e.target.id==='nt-at-in'){if(/^\d\d:\d\d/.test(e.target.value)){PREFS.digestAt=e.target.value.slice(0,5);savePrefs()}return}
   if(e.target.id==='e-time-in'){if(/^\d\d:\d\d/.test(e.target.value))draft.time=e.target.value.slice(0,5);return}
   if(e.target.id==='nt-digest'){PREFS.digest=e.target.checked;savePrefs();openNotifs();return}

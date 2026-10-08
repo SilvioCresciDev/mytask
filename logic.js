@@ -151,4 +151,37 @@ function repair(S){
   return ch;
 }
 
-if(typeof module!=='undefined')module.exports={pad,iso,addDays,todayIso,daysInMonth,esc,STEP,nextDate,occ,nextAfterDone,safeColor,labCss,fieldsOf,stampItem,mergeItem,mergeDoc,maxStamp,TOMB_KEEP_DAYS,canon,sameDoc,capReminders,SCHEMA,migrate,repair};
+/* ---------- esporta / importa ----------
+   Il file contiene card, board ed etichette. All'importazione ogni oggetto viene controllato e completato:
+   un file rovinato o di un'altra app viene rifiutato con un messaggio chiaro invece di rompere i dati */
+const EXPORT_APP='mytask';
+function exportDoc(S,now){return {app:EXPORT_APP,v:SCHEMA,exported:new Date(now).toISOString(),cards:S.cards,boards:S.boards,labels:S.labels}}
+function parseExport(text){
+  let d;try{d=JSON.parse(text)}catch(e){throw new Error('Il file non è un backup di MyTask (non è JSON valido).')}
+  if(!d||typeof d!=='object'||!Array.isArray(d.cards)||!Array.isArray(d.boards))throw new Error('Il file non è un backup di MyTask.');
+  if(d.v>SCHEMA)throw new Error("Il file viene da una versione più nuova dell'app: aggiorna MyTask e riprova.");
+  const str=(x,max)=>typeof x==='string'?x.slice(0,max):'';
+  const id=x=>typeof x==='string'&&/^[\w-]{1,40}$/.test(x)?x:null;
+  const stamps=(o,x)=>{if(Number.isFinite(x.upd))o.upd=x.upd;if(Number.isFinite(x.c0))o.c0=x.c0;if(x.fu&&typeof x.fu==='object'){const fu={};for(const k in x.fu)if(Number.isFinite(x.fu[k]))fu[k]=x.fu[k];if(Object.keys(fu).length)o.fu=fu}return o};
+  const boards=d.boards.filter(b=>b&&id(b.id)&&Array.isArray(b.lists)).map(b=>stamps({id:b.id,name:str(b.name,40)||'Board',c:safeColor(b.c)||'--l-blue',
+    lists:b.lists.filter(l=>l&&id(l.id)).map(l=>({id:l.id,name:str(l.name,40)||'Colonna',...(l.done?{done:true}:{})}))},b)).filter(b=>b.lists.length);
+  const labels=(Array.isArray(d.labels)?d.labels:[]).filter(l=>l&&id(l.id)).map(l=>stamps({id:l.id,name:str(l.name,24)||l.id,c:safeColor(l.c)||'--l-blue'},l));
+  const day=x=>typeof x==='string'&&/^\d{4}-\d\d-\d\d$/.test(x)?x:null;
+  const cards=d.cards.filter(c=>c&&id(c.id)&&typeof c.title==='string'&&c.title.trim()).map(c=>{
+    const o={id:c.id,title:str(c.title,500),notes:str(c.notes,20000),boardId:id(c.boardId),listId:id(c.listId),date:day(c.date),
+      time:typeof c.time==='string'&&/^\d\d:\d\d$/.test(c.time)?c.time:null,
+      labels:Array.isArray(c.labels)?c.labels.filter(id):[],
+      checklist:Array.isArray(c.checklist)?c.checklist.filter(i=>i&&typeof i.t==='string').map(i=>({t:i.t.slice(0,500),d:!!i.d})):[],
+      recur:typeof c.recur==='string'&&(c.recur in STEP||['none','monthly','dates'].includes(c.recur))?c.recur:'none',
+      reminder:Number.isFinite(c.reminder)?c.reminder:null,done:!!c.done,notified:!!c.notified,snooze:Number.isFinite(c.snooze)?c.snooze:null};
+    if(Array.isArray(c.dates))o.dates=c.dates.filter(day);
+    if(c.prio===1||c.prio===2)o.prio=c.prio;
+    if(Number.isInteger(c.mday)&&c.mday>=1&&c.mday<=31)o.mday=c.mday;
+    if(Number.isFinite(c.doneAt))o.doneAt=c.doneAt;
+    if(c.archived)o.archived=true;
+    return stamps(o,c);
+  });
+  return {cards,boards,labels};
+}
+
+if(typeof module!=='undefined')module.exports={pad,iso,addDays,todayIso,daysInMonth,esc,STEP,nextDate,occ,nextAfterDone,safeColor,labCss,fieldsOf,stampItem,mergeItem,mergeDoc,maxStamp,TOMB_KEEP_DAYS,canon,sameDoc,capReminders,SCHEMA,migrate,repair,exportDoc,parseExport};

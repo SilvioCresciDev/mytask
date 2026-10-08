@@ -183,3 +183,31 @@ test('repair: card di board o colonne sparite tornano visibili', () => {
   assert.ok(!('archived' in S.cards[0]));
   assert.ok(!L.repair(S));
 });
+
+test('esporta e reimporta: i dati tornano uguali', () => {
+  const S = {
+    boards: [{ id: 'b1', name: 'Lavoro', c: '--l-blue', lists: [{ id: 'l1', name: 'Da fare' }, { id: 'l2', name: 'Fatto', done: true }], upd: 5 }],
+    labels: [{ id: 'urgente', name: 'urgente', c: '--l-red' }],
+    cards: [{ id: 'c1', title: 'Affitto', notes: 'n', boardId: 'b1', listId: 'l1', date: '2026-01-31', time: '09:00', labels: ['urgente'], checklist: [{ t: 'a', d: true }],
+      recur: 'monthly', mday: 31, reminder: 60, done: false, notified: false, snooze: null, prio: 2, upd: 7, c0: 3, fu: { title: 7 } }],
+  };
+  const back = L.parseExport(JSON.stringify(L.exportDoc(S, 0)));
+  assert.equal(L.canon(back.cards), L.canon(S.cards));
+  assert.equal(L.canon(back.boards), L.canon(S.boards));
+  assert.equal(L.canon(back.labels), L.canon(S.labels));
+});
+
+test('importa: rifiuta file sbagliati e ripulisce i campi', () => {
+  assert.throws(() => L.parseExport('ciao'), /non è un backup/);
+  assert.throws(() => L.parseExport('{"cards":[]}'), /non è un backup/);
+  assert.throws(() => L.parseExport(JSON.stringify({ v: 99, cards: [], boards: [] })), /più nuova/);
+  const d = L.parseExport(JSON.stringify({
+    boards: [{ id: 'b', name: 'B', c: 'red;x:y', lists: [{ id: 'l' }] }, { id: 'senza-colonne', lists: [] }],
+    cards: [{ id: 'ok', title: 'T', date: 'domani', time: '9', recur: 'boh', labels: ['x', 5] }, { id: 'vuota', title: '  ' }, { title: 'senza id' }],
+  }));
+  assert.deepEqual(d.boards.map(b => [b.id, b.c]), [['b', '--l-blue']]);
+  assert.equal(d.cards.length, 1);
+  const c = d.cards[0];
+  assert.deepEqual([c.date, c.time, c.recur, c.labels, c.notes, c.done], [null, null, 'none', ['x'], '', false]);
+  assert.deepEqual(d.labels, []);
+});
