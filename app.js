@@ -165,7 +165,9 @@ function applyShared(bid,m){
   const newLabs=m.labels.filter(l=>!lab(l.id));
   if(sameDoc(pick(m),pick(cur))&&!newLabs.length){store();return}
   S.cards=[...S.cards.filter(c=>c.boardId!==bid),...m.cards.map(c=>c.boardId===bid?c:{...c,boardId:bid})];
-  const b=m.boards.find(x=>x.id===bid);if(b){const i=S.boards.findIndex(x=>x.id===bid);if(i>=0)S.boards[i]=b;else S.boards.push(b)}
+  const b=m.boards.find(x=>x.id===bid);
+  if(b&&b.deleted&&!deleting.has(bid)){const n=b.name;syncSnap=snapOf();leaveShare(bid);render();toast('La board condivisa "'+n+'" è stata eliminata da un membro');return}
+  if(b){const i=S.boards.findIndex(x=>x.id===bid);if(i>=0)S.boards[i]=b;else S.boards.push(b)}
   syncSnap=snapOf();
   // etichette nuove per questo dispositivo: entrano come create qui, così arrivano anche nel backup personale
   if(newLabs.length){newLabs.forEach(l=>S.labels.push(cloneAs(l,l.id)));stampSync();queueSync()}
@@ -216,6 +218,7 @@ async function joinShare(code){
   if(r.status!==200)throw new Error('Server non raggiungibile, riprova.');
   if(!r.data)throw new Error('Nessuna board condivisa con questo codice.');
   const doc=await unseal(k,r.data),b=(doc.boards||[])[0];if(!b)throw new Error('La board condivisa è vuota o rovinata.');
+  if(b.deleted)throw new Error('Questa board condivisa è stata eliminata.');
   if(!isShared(b.id)){
     // rientro dopo essere uscito: la vecchia traccia non deve bloccare l'iscrizione nuova
     delete S.tomb['j'+b.id];
@@ -224,6 +227,19 @@ async function joinShare(code){
   }
   if(board(b.id)){S.board=b.id;goView('board')}
   return board(b.id);
+}
+/* elimina per tutti: la board viene segnata come eliminata nel documento condiviso e le card tolte;
+   ogni membro, alla prossima sincronizzazione, esce da solo. Senza connessione non si elimina niente */
+// board che sto eliminando io: finché il server non conferma, non le applico l'uscita automatica
+const deleting=new Set();
+async function deleteShare(bid){
+  const b=board(bid),j=(S.joins||[]).find(x=>x.id===bid);if(!b||!j)return false;
+  const undo=undoFor(S.cards.filter(c=>c.boardId===bid).map(c=>c.id));
+  b.deleted=true;S.cards=S.cards.filter(c=>c.boardId!==bid);save();
+  deleting.add(bid);try{await syncShare(j)}finally{deleting.delete(bid)}
+  if(SHARES[bid]&&SHARES[bid].err){const x=board(bid);if(x)delete x.deleted;undo();return false}
+  if(isShared(bid)){syncSnap=snapOf();leaveShare(bid)}
+  sharesKeep();return true;
 }
 /* esci: board e card spariscono da qui e dagli altri tuoi dispositivi; per gli altri membri resta tutto */
 function leaveShare(bid){
@@ -357,7 +373,7 @@ function openBoardEdit(){
     <span class="note">${bdArm&&bdArm!=='board'?'Le card della colonna passano nella prima colonna rimasta. Tocca di nuovo per confermare.':'La colonna delle completate non si elimina: serve a segnare le card come fatte.'}</span></div>
    ${isShared(b.id)?`<div class="f"><button type="button" class="btn" data-share-open>${I.users} Condivisione e link</button></div>`
     :`<div class="f"><button type="button" class="btn" data-share-ask>${I.users} Condividi questa board…</button></div>`}
-   ${isShared(b.id)?'':S.boards.length>1?`<div class="f"><button type="button" class="btn danger" data-bdx>${bdArm==='board'?'Conferma: elimina la board':'Elimina board'}</button><span class="note">Le sue card non vanno perse: finiscono nell'Inbox.</span></div>`:''}
+   ${isShared(b.id)?`<div class="f"><button type="button" class="btn danger" data-share-open>Esci o elimina la board…</button></div>`:S.boards.length>1?`<div class="f"><button type="button" class="btn danger" data-bdx>${bdArm==='board'?'Conferma: elimina la board':'Elimina board'}</button><span class="note">Le sue card non vanno perse: finiscono nell'Inbox.</span></div>`:''}
    <div class="actions"><span></span><button type="button" class="btn primary" id="bdm-close">Fatto</button></div></div></div>`;
   modalOpened();
 }
@@ -371,7 +387,7 @@ function boardAct(t){
     b.lists=b.lists.filter(l=>l.id!==id);const to=b.lists.find(l=>!l.done)||b.lists[0];S.cards.forEach(c=>{if(c.listId===id)c.listId=to.id});
     save();render();openBoardEdit();
     toast('Colonna eliminata',()=>{if(!b.lists.some(l=>l.id===id)){b.lists=[...b.lists];b.lists.splice(li,0,JSON.parse(lj))}undo();if(document.getElementById('bdm'))openBoardEdit()});return}
-  if(t.closest('[data-share-open]')){bdArm=null;shArm=false;return openShare(b.id)}
+  if(t.closest('[data-share-open]')){bdArm=null;shArm=null;return openShare(b.id)}
   if(t.closest('[data-share-ask]')){bdArm=null;return openShareAsk(b.id)}
   if(t.closest('[data-bdx]')){if(bdArm!=='board'){bdArm='board';return openBoardEdit()}
     bdArm=null;const bi=S.boards.indexOf(b),bj=JSON.stringify(b),undo=undoFor(S.cards.filter(c=>c.boardId===b.id).map(c=>c.id));
@@ -381,7 +397,7 @@ function boardAct(t){
 }
 
 /* ---------- board condivise: conferma, link e QR, entra con un codice ---------- */
-var shArm=false;
+var shArm=null; // 'leave' o 'del': secondo tocco per confermare
 function openShareAsk(bid){
   const b=board(bid);if(!b)return;
   document.getElementById('modal').innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="sha" data-board="${b.id}" role="dialog" aria-label="Condividi board"><h3>Condividere "${esc(b.name)}"?</h3>
@@ -401,8 +417,10 @@ function openShare(bid){
    ${qr?`<div class="qr" aria-label="Codice QR del link">${qr}</div><span class="note" style="text-align:center">Fai inquadrare il QR con la fotocamera, oppure manda il link.</span>`:''}
    <div class="f"><span class="flab">Codice</span><div class="bkcode">${fmtCode(j.code)}</div></div>
    <div class="bkrow">${navigator.share?'<button type="button" class="btn primary" data-sh="send">Invia link</button>':''}<button type="button" class="btn" data-sh="copy">Copia link</button></div>
-   <div class="f"><button type="button" class="btn ghost danger" data-sh="leave">${shArm?'Conferma: esci dalla board':'Esci dalla board'}</button>
-    <span class="note">${shArm?'La board sparisce da questo dispositivo e dagli altri tuoi. Per gli altri membri resta tutto. Puoi rientrare con lo stesso link.':'Uscendo, la board resta agli altri membri.'}</span></div>
+   <div class="f"><div class="bkrow"><button type="button" class="btn ghost danger" data-sh="leave">${shArm==='leave'?'Conferma: esci':'Esci dalla board'}</button><button type="button" class="btn danger" data-sh="del">${shArm==='del'?'Conferma: elimina per tutti':'Elimina per tutti'}</button></div>
+    <span class="note">${shArm==='leave'?'La board sparisce da questo dispositivo e dagli altri tuoi. Per gli altri membri resta tutto. Puoi rientrare con lo stesso link.'
+      :shArm==='del'?'La board e tutte le sue card spariscono per tutti i membri, e il link smette di funzionare. Non si può annullare.'
+      :'Esci: la board resta agli altri. Elimina per tutti: sparisce a ogni membro.'}</span></div>
    <div class="actions"><span></span><button type="button" class="btn primary" id="e-cancel">Chiudi</button></div></div></div>`;
   modalOpened();
 }
@@ -422,7 +440,9 @@ async function shareAct(t){
   const j=(S.joins||[]).find(x=>x.id===bid);if(!j)return;const link=shareLink(j.code);
   if(v==='send'){try{await navigator.share({title:'MyTask: '+board(bid).name,text:'Entra nella board "'+board(bid).name+'" su MyTask',url:link})}catch(e){}return}
   if(v==='copy'){try{await navigator.clipboard.writeText(link);toast('Link copiato')}catch(e){prompt('Copia da qui:',link)}return}
-  if(v==='leave'){if(!shArm){shArm=true;return openShare(bid)}shArm=false;const n=board(bid).name;closeEditor();leaveShare(bid);render();toast('Sei uscito dalla board "'+n+'"')}
+  if(v==='leave'){if(shArm!=='leave'){shArm='leave';return openShare(bid)}shArm=null;const n=board(bid).name;closeEditor();leaveShare(bid);render();toast('Sei uscito dalla board "'+n+'"');return}
+  if(v==='del'){if(shArm!=='del'){shArm='del';return openShare(bid)}shArm=null;const n=board(bid).name;a.disabled=true;a.textContent='Elimino…';
+    const ok=await deleteShare(bid);if(ok){closeEditor();render();toast('Board "'+n+'" eliminata per tutti')}else{openShare(bid);render();toast("Serve la connessione per eliminare la board per tutti. Non è cambiato niente.")}}
 }
 
 /* ---------- svuota colonna: conferma in un pop-up ---------- */
